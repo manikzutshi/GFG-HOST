@@ -5,6 +5,11 @@ const sendBtn = document.getElementById("sendBtn");
 const newChatBtn = document.getElementById("newChatBtn");
 const csvUpload = document.getElementById("csvUpload");
 const datasetBadge = document.getElementById("datasetBadge");
+const vaultBtn = document.getElementById("vaultBtn");
+const vaultArea = document.getElementById("vaultArea");
+const vaultGrid = document.getElementById("vaultGrid");
+const vaultSearch = document.getElementById("vaultSearch");
+const inputBar = document.getElementById("inputBar");
 
 const CHART_COLORS = [
     "#7b61ff", "#00e5ff", "#10b981", "#f59e0b",
@@ -39,6 +44,10 @@ document.querySelectorAll(".suggestion").forEach((btn) => {
 
 /* ─── New Chat ─── */
 newChatBtn.addEventListener("click", async () => {
+    document.body.classList.remove("vault-active");
+    vaultArea.style.display = "none";
+    chatArea.style.display = "block";
+    inputBar.style.display = "block";
     await fetch("/api/reset", { method: "POST" });
     chatArea.innerHTML = "";
     chatArea.appendChild(welcomeScreen);
@@ -80,8 +89,114 @@ csvUpload.addEventListener("change", async (e) => {
     csvUpload.value = "";
 });
 
+/* ─── Vault Feature ─── */
+vaultBtn.addEventListener("click", async () => {
+    document.body.classList.add("vault-active");
+    chatArea.style.display = "none";
+    inputBar.style.display = "none";
+    vaultArea.style.display = "block";
+    
+    vaultGrid.innerHTML = `<div class="loading-indicator" style="grid-column: 1/-1;"><span class="loading-text">Loading vault...</span></div>`;
+    
+    try {
+        const res = await fetch("/api/vault");
+        const data = await res.json();
+        if (data.error) {
+            vaultGrid.innerHTML = `<div class="chart-error">⚠ ${escapeHtml(data.error)}</div>`;
+            return;
+        }
+        
+        if (data.charts.length === 0) {
+            vaultGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">Your vault is empty. Generate some charts and save them!</div>`;
+            return;
+        }
+        
+        let allVaultCharts = data.charts;
+
+        const renderVaultCharts = (chartsToRender) => {
+            if (chartsToRender.length === 0) {
+                vaultGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">No charts match your search.</div>`;
+                return;
+            }
+
+            vaultGrid.innerHTML = chartsToRender.map((c, i) => {
+                const canvasId = `vault-chart-${Date.now()}-${i}`;
+                // Apply Bento Box varied sizing rules based on chart type
+                // Wide charts: bar, line. Square charts: pie, doughnut, radar, polarArea, scatter
+                const isWide = ["bar", "horizontal_bar", "line"].includes(c.type);
+                const bentoClass = isWide ? "bento-wide" : "";
+
+                return `
+                    <div class="chart-card ${bentoClass}">
+                        <div class="chart-card-header">
+                            <h3>${escapeHtml(c.title)}</h3>
+                            <div class="card-actions-wrapper">
+                                <span class="chart-type-badge">${escapeHtml(c.type)}</span>
+                                <button class="btn-icon btn-view-sql-vault" title="View SQL" data-chart-index="${i}">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="chart-container" style="height: 220px;">
+                            <canvas id="${canvasId}"></canvas>
+                        </div>
+                        ${c.description ? `<p class="chart-description">${escapeHtml(c.description)}</p>` : ""}
+                        <div class="sql-code-block" id="vault-sql-block-${i}" style="display: none;">
+                            <div class="sql-header">Saved SQL Query</div>
+                            <pre><code>${escapeHtml(c.data.sql || c.sql || "No SQL saved")}</code></pre>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+            
+            destroyAllCharts();
+            
+            chartsToRender.forEach((c, i) => {
+                const canvas = vaultGrid.querySelectorAll('canvas')[i];
+                if (canvas) renderChart(canvas, c);
+            });
+
+            const vaultSqlBtns = vaultGrid.querySelectorAll('.btn-view-sql-vault');
+            vaultSqlBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const cIdx = btn.getAttribute('data-chart-index');
+                    const sqlBlock = vaultGrid.querySelector(`#vault-sql-block-${cIdx}`);
+                    if (sqlBlock.style.display === 'none') {
+                        sqlBlock.style.display = 'block';
+                        btn.classList.add('active');
+                    } else {
+                        sqlBlock.style.display = 'none';
+                        btn.classList.remove('active');
+                    }
+                });
+            });
+        };
+
+        // Initial render
+        renderVaultCharts(allVaultCharts);
+
+        // Search filtering logic
+        vaultSearch.addEventListener("input", (e) => {
+            const query = e.target.value.toLowerCase();
+            const filtered = allVaultCharts.filter(c => {
+                const searchableText = `${c.title} ${c.description || ""} ${c.type}`.toLowerCase();
+                return searchableText.includes(query);
+            });
+            renderVaultCharts(filtered);
+        });
+        
+    } catch (err) {
+        vaultGrid.innerHTML = `<div class="chart-error">⚠ Failed to load vault.</div>`;
+    }
+});
+
 
 async function handleSend() {
+    document.body.classList.remove("vault-active");
+    vaultArea.style.display = "none";
+    chatArea.style.display = "block";
+    inputBar.style.display = "block";
+    
     const text = queryInput.value.trim();
     if (!text) return;
 
@@ -203,12 +318,24 @@ function appendDashboard(data) {
             <div class="chart-card" style="animation-delay:${idx * 0.1}s">
                 <div class="chart-card-header">
                     <h3>${escapeHtml(chart.title || "Chart")}</h3>
-                    <span class="chart-type-badge">${escapeHtml(chart.type || "bar")}</span>
+                    <div class="card-actions-wrapper">
+                        <span class="chart-type-badge">${escapeHtml(chart.type || "bar")}</span>
+                        <button class="btn-icon btn-view-sql" title="View SQL" data-chart-index="${idx}">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+                        </button>
+                        <button class="btn-icon save-vault-btn" title="Save to Vault" data-chart-index="${idx}">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                        </button>
+                    </div>
                 </div>
                 <div class="chart-container">
                     <canvas id="${canvasId}"></canvas>
                 </div>
                 ${chart.description ? `<p class="chart-description">${escapeHtml(chart.description)}</p>` : ""}
+                <div class="sql-code-block" id="sql-block-${idx}" style="display: none;">
+                    <div class="sql-header">Generated SQL Query</div>
+                    <pre><code>${escapeHtml(chart.sql || "No SQL available")}</code></pre>
+                </div>
             </div>
         `;
     }).join("");
@@ -225,9 +352,50 @@ function appendDashboard(data) {
 
     charts.forEach((chart, idx) => {
         if (chart.error || !chart.data || chart.data.length === 0) return;
-        const canvasId = `chart-${block.querySelector(".chart-card:nth-child(" + (idx + 1) + ") canvas")?.id}`;
         const canvas = block.querySelectorAll("canvas")[idx];
         if (canvas) renderChart(canvas, chart);
+    });
+
+    const saveBtns = block.querySelectorAll('.save-vault-btn');
+    saveBtns.forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const cIdx = btn.getAttribute('data-chart-index');
+            const chartData = charts[cIdx];
+            // Ensure the raw SQL string is included in the payload sent to the Vault
+            chartData.sql = chartData.sql || "";
+            
+            btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+            btn.disabled = true;
+            btn.style.pointerEvents = 'none';
+            btn.style.borderColor = "var(--success)";
+            
+            try {
+                await fetch('/api/vault', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(chartData)
+                });
+            } catch (err) {
+                console.error("Failed to save to vault", err);
+                btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--error)" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+            }
+        });
+    });
+
+    const sqlBtns = block.querySelectorAll('.btn-view-sql');
+    sqlBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const cIdx = btn.getAttribute('data-chart-index');
+            const sqlBlock = block.querySelector(`#sql-block-${cIdx}`);
+            if (sqlBlock.style.display === 'none') {
+                sqlBlock.style.display = 'block';
+                btn.classList.add('active');
+            } else {
+                sqlBlock.style.display = 'none';
+                btn.classList.remove('active');
+            }
+            scrollToBottom();
+        });
     });
 
     scrollToBottom();
