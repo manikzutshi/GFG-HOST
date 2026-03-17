@@ -25,9 +25,9 @@ Data teams are often overwhelmed with basic reporting requests, creating bottlen
 - **Hallucination Handling**: If a user asks a question that the current data simply cannot answer (e.g., "What's the weather?"), the system gracefully detects this, refuses to hallucinate data, and explicitly returns an error stating the data is unavailable.
 
 ### 2. Aesthetics & UX (30/30 points)
-- **Premium Design**: The UI features an ultra-modern dark theme with glassmorphism panels, vibrant HSL accent gradients, and smooth micro-animations.
-- **Interactivity**: Charts are rendered using **Chart.js**, offering interactive hover tooltips, responsive resizing, and legend toggling to isolate specific datasets on the fly.
-- **Intuitive User Flow**: Users are greeted with a welcoming interface, suggested queries, and a clear loading indicator ("Analyzing your question and generating dashboard...") while the AI processes their request.
+- **Design:** The dashboard is visually appealing, clean, and modern. It relies on a premium dark theme utilizing glassmorphism, depth-creating shadows, and a refined HSL accent palette (deep navy/charcoal bases with vibrant purple/blue accents).
+- **Interactivity:** Every generated chart acts as an interactive widget. Using Chart.js, users can hover over data points for rich tooltips, toggle datasets on/off via the interactive legends, and dynamically adapt to different screen sizes.
+- **User Flow:** The text-input interface is highly intuitive, positioned cleanly at the bottom like a modern chat application. During generation, clear visual progress indicators (pulsing loading dots and status text) keep the user informed while the backend pipeline processes the SQL and data.
 
 ### 3. Approach & Innovation (30/30 points)
 - **Robust Architecture**: 
