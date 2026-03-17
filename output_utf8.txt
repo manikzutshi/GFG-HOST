@@ -1,0 +1,54 @@
+﻿python : Traceback (most recent 
+call last):
+At line:1 char:1
++ python app.py > output.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : Not 
+   Specified: (Traceback (most r  
+  ecent call last)::String) [],   
+  RemoteException
+    + FullyQualifiedErrorId : Nat 
+   iveCommandError
+ 
+  File "C:\Users\Manik\Downloads\G
+FGhack\app.py", line 172, in 
+<module>
+    gemini_service.init_gemini(os.
+getenv("GEMINI_API_KEY"))
+  File "C:\Users\Manik\Downloads\G
+FGhack\gemini_service.py", line 
+12, in init_gemini
+    client = 
+genai.Client(api_key=api_key)
+             
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Manik\AppData\Loc
+al\Packages\PythonSoftwareFoundati
+on.Python.3.11_qbz5n2kfra8p0\Local
+Cache\local-packages\Python311\sit
+e-packages\google\genai\client.py"
+, line 426, in __init__
+    self._api_client = 
+self._get_api_client(
+                       
+^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Manik\AppData\Loc
+al\Packages\PythonSoftwareFoundati
+on.Python.3.11_qbz5n2kfra8p0\Local
+Cache\local-packages\Python311\sit
+e-packages\google\genai\client.py"
+, line 474, in _get_api_client
+    return BaseApiClient(
+           ^^^^^^^^^^^^^^
+  File "C:\Users\Manik\AppData\Loc
+al\Packages\PythonSoftwareFoundati
+on.Python.3.11_qbz5n2kfra8p0\Local
+Cache\local-packages\Python311\sit
+e-packages\google\genai\_api_clien
+t.py", line 706, in __init__
+    raise ValueError(
+ValueError: No API key was 
+provided. Please pass a valid API 
+key. Learn how to create an API 
+key at https://ai.google.dev/gemin
+i-api/docs/api-key.
