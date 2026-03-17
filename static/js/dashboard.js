@@ -12,8 +12,14 @@ const vaultSearch = document.getElementById("vaultSearch");
 const inputBar = document.getElementById("inputBar");
 
 const CHART_COLORS = [
-    "#7b61ff", "#00e5ff", "#10b981", "#f59e0b",
-    "#ef4444", "#8b5cf6", "#ec4899", "#f97316"
+    "#0A84FF", // Blue
+    "#30D158", // Green
+    "#FF9F0A", // Orange
+    "#FF375F", // Pink
+    "#BF5AF2", // Purple
+    "#5E5CE6", // Indigo
+    "#64D2FF", // Cyan/Teal
+    "#FFD60A"  // Yellow
 ];
 
 let chartInstances = [];
@@ -459,7 +465,7 @@ function renderChart(canvas, chartConfig) {
                     display: datasets.length > 1 || isPie,
                     position: isPie ? "right" : "top",
                     labels: {
-                        color: "#9494a8",
+                        color: "#86868B",
                         font: { family: "Inter", size: 12, weight: 500 },
                         padding: 16,
                         usePointStyle: true,
@@ -467,10 +473,10 @@ function renderChart(canvas, chartConfig) {
                     }
                 },
                 tooltip: {
-                    backgroundColor: "rgba(13, 13, 20, 0.9)",
+                    backgroundColor: "rgba(28, 28, 30, 0.85)", /* Apple UI Dark grey */
                     titleColor: "#ffffff",
-                    bodyColor: "#f0f0f5",
-                    borderColor: "rgba(123, 97, 255, 0.3)",
+                    bodyColor: "#F5F5F7",
+                    borderColor: "rgba(255, 255, 255, 0.1)",
                     borderWidth: 1,
                     padding: 14,
                     cornerRadius: 12,
@@ -492,12 +498,12 @@ function renderChart(canvas, chartConfig) {
             scales: isPie ? {} : {
                 x: {
                     grid: { color: "rgba(255,255,255,0.03)", drawBorder: false },
-                    ticks: { color: "#5e5e73", font: { family: "Inter", size: 11 }, maxRotation: 45 }
+                    ticks: { color: "#86868B", font: { family: "Inter", size: 11 }, maxRotation: 45 }
                 },
                 y: {
                     grid: { color: "rgba(255,255,255,0.03)", drawBorder: false },
                     ticks: {
-                        color: "#5e5e73",
+                        color: "#86868B",
                         font: { family: "Inter", size: 11 },
                         callback: (v) => (typeof v === "number" && v > 999 ? (v / 1000).toFixed(0) + "k" : v)
                     }
