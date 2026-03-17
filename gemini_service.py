@@ -40,13 +40,17 @@ RULES:
 }}
 
 6. Chart type selection rules:
-   - Categorical comparisons → bar (horizontal bar if many categories)
+   - Categorical vs Numeric → bar (horizontal bar if many categories or long names)
    - Time-series or sequential data → line
    - Parts of a whole / proportions → pie or doughnut
-   - Correlations between two numeric columns → scatter
+   - Correlations between two numeric columns (e.g., Age vs Income) → scatter
    - Multi-dimensional profiles → radar
    - Distributions → bar (with GROUP BY buckets)
-
+   
+   CRITICAL CHART RULES:
+   - NEVER use a bar chart when comparing two continuous numeric columns (e.g., Age vs Income, Spend vs Score). You MUST use a scatter chart or a line chart for continuous vs continuous.
+   - For scatter charts, do NOT group by or aggregate unless requested. Select the raw pairs of numeric columns.
+   
 7. Generate 1-4 charts per query depending on complexity. For simple questions, 1 chart is fine.
 8. If the user's question CANNOT be answered from this dataset, respond with:
    {{"error": "I cannot answer this question with the available consumer behavior data. The dataset contains: age, income, internet usage, shopping preferences, spending patterns, and related scores.", "interpretation": "What you understood"}}
