@@ -72,9 +72,105 @@ def reset():
     gemini_service.reset_conversation()
     return jsonify({"message": "Conversation reset."})
 
+# --- VAULT FEATURE ---
+
+VAULT_DB_PATH = os.path.join(DATA_DIR, "vault.db")
+
+def init_vault():
+    import sqlite3
+    os.makedirs(DATA_DIR, exist_ok=True)
+    conn = sqlite3.connect(VAULT_DB_PATH)
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS saved_charts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT,
+            type TEXT,
+            data JSON,
+            x_column TEXT,
+            y_columns JSON,
+            description TEXT,
+            sql TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Simple migration: add 'sql' column if missing from earlier versions
+    try:
+        c.execute('ALTER TABLE saved_charts ADD COLUMN sql TEXT')
+    except sqlite3.OperationalError:
+        pass  # Column likely already exists
+        
+    conn.commit()
+    conn.close()
+
+# Ensure the vault DB is always initialized when the module loads
+init_vault()
+
+@app.route("/api/vault", methods=["POST"])
+def save_to_vault():
+    import sqlite3
+    import json
+    chart_data = request.get_json()
+    if not chart_data:
+         return jsonify({"error": "No data provided."}), 400
+         
+    try:
+        conn = sqlite3.connect(VAULT_DB_PATH)
+        c = conn.cursor()
+        c.execute('''
+            INSERT INTO saved_charts (title, type, data, x_column, y_columns, description, sql)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            chart_data.get("title", "Untitled"),
+            chart_data.get("type", "bar"),
+            json.dumps(chart_data.get("data", [])),
+            chart_data.get("x_column", ""),
+            json.dumps(chart_data.get("y_columns", [])),
+            chart_data.get("description", ""),
+            chart_data.get("sql", "")
+        ))
+        conn.commit()
+        conn.close()
+        return jsonify({"message": "Chart saved to Vault successfully."})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": "Failed to save chart to Vault."}), 500
+
+@app.route("/api/vault", methods=["GET"])
+def get_vault_charts():
+    import sqlite3
+    import json
+    try:
+        conn = sqlite3.connect(VAULT_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute('SELECT * FROM saved_charts ORDER BY created_at DESC')
+        rows = c.fetchall()
+        
+        charts = []
+        for row in rows:
+            charts.append({
+                "id": row["id"],
+                "title": row["title"],
+                "type": row["type"],
+                "data": json.loads(row["data"]),
+                "x_column": row["x_column"],
+                "y_columns": json.loads(row["y_columns"]),
+                "description": row["description"],
+                "sql": row["sql"] if "sql" in row.keys() else "",
+                "created_at": row["created_at"]
+            })
+        conn.close()
+        return jsonify({"charts": charts})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": "Failed to retrieve Vault charts."}), 500
+
 
 if __name__ == "__main__":
     gemini_service.init_gemini(os.getenv("GEMINI_API_KEY"))
+    init_vault()
     init_data(DEFAULT_CSV)
     print(f"Loaded dataset. Schema:\n{schema_text}")
     app.run(debug=True, port=5000)
