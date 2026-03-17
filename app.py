@@ -168,9 +168,18 @@ def get_vault_charts():
         return jsonify({"error": "Failed to retrieve Vault charts."}), 500
 
 
-if __name__ == "__main__":
-    gemini_service.init_gemini(os.getenv("GEMINI_API_KEY"))
-    init_vault()
+# Initialize services globally so they run in Vercel's serverless environment
+api_key = os.getenv("GEMINI_API_KEY")
+if api_key:
+    gemini_service.init_gemini(api_key)
+else:
+    print("Warning: GEMINI_API_KEY environment variable is not set")
+
+try:
     init_data(DEFAULT_CSV)
+except Exception as e:
+    print(f"Failed to load initial data: {e}")
+
+if __name__ == "__main__":
     print(f"Loaded dataset. Schema:\n{schema_text}")
     app.run(debug=True, port=5000)
