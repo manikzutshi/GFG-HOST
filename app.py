@@ -13,6 +13,9 @@ app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB upload limit
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 DEFAULT_CSV = os.path.join(DATA_DIR, "consumer_data.csv")
 
+# Use /tmp for writable files in Vercel's serverless environment
+WRITABLE_DIR = "/tmp" if os.getenv("VERCEL") else DATA_DIR
+
 schema_text = ""
 column_stats = {}
 
@@ -55,8 +58,8 @@ def upload_csv():
     if not file.filename.endswith(".csv"):
         return jsonify({"error": "Only CSV files are supported."}), 400
 
-    os.makedirs(DATA_DIR, exist_ok=True)
-    save_path = os.path.join(DATA_DIR, "uploaded_data.csv")
+    os.makedirs(WRITABLE_DIR, exist_ok=True)
+    save_path = os.path.join(WRITABLE_DIR, "uploaded_data.csv")
     file.save(save_path)
     init_data(save_path)
     return jsonify({"message": "Dataset uploaded successfully.", "schema": schema_text})
@@ -74,11 +77,11 @@ def reset():
 
 # --- VAULT FEATURE ---
 
-VAULT_DB_PATH = os.path.join(DATA_DIR, "vault.db")
+VAULT_DB_PATH = os.path.join(WRITABLE_DIR, "vault.db")
 
 def init_vault():
     import sqlite3
-    os.makedirs(DATA_DIR, exist_ok=True)
+    os.makedirs(WRITABLE_DIR, exist_ok=True)
     conn = sqlite3.connect(VAULT_DB_PATH)
     c = conn.cursor()
     c.execute('''
