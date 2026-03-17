@@ -7,8 +7,8 @@ const csvUpload = document.getElementById("csvUpload");
 const datasetBadge = document.getElementById("datasetBadge");
 
 const CHART_COLORS = [
-    "#6C63FF", "#00D2FF", "#34d399", "#fbbf24",
-    "#f87171", "#a78bfa", "#f472b6", "#fb923c"
+    "#7b61ff", "#00e5ff", "#10b981", "#f59e0b",
+    "#ef4444", "#8b5cf6", "#ec4899", "#f97316"
 ];
 
 let chartInstances = [];
@@ -281,48 +281,55 @@ function renderChart(canvas, chartConfig) {
             responsive: true,
             maintainAspectRatio: false,
             indexAxis,
+            animation: {
+                duration: 1200,
+                easing: 'easeOutQuart'
+            },
             interaction: { mode: "index", intersect: false },
             plugins: {
                 legend: {
                     display: datasets.length > 1 || isPie,
                     position: isPie ? "right" : "top",
                     labels: {
-                        color: "#8b8b9e",
-                        font: { family: "Inter", size: 11 },
-                        padding: 12,
-                        usePointStyle: true
+                        color: "#9494a8",
+                        font: { family: "Inter", size: 12, weight: 500 },
+                        padding: 16,
+                        usePointStyle: true,
+                        pointStyle: 'circle'
                     }
                 },
                 tooltip: {
-                    backgroundColor: "#1a1a2e",
-                    titleColor: "#e8e8ed",
-                    bodyColor: "#8b8b9e",
-                    borderColor: "rgba(255,255,255,0.1)",
+                    backgroundColor: "rgba(13, 13, 20, 0.9)",
+                    titleColor: "#ffffff",
+                    bodyColor: "#f0f0f5",
+                    borderColor: "rgba(123, 97, 255, 0.3)",
                     borderWidth: 1,
-                    padding: 12,
-                    cornerRadius: 8,
-                    titleFont: { family: "Inter", weight: "600" },
-                    bodyFont: { family: "Inter" },
+                    padding: 14,
+                    cornerRadius: 12,
+                    displayColors: true,
+                    boxPadding: 6,
+                    titleFont: { family: "Inter", size: 13, weight: "700" },
+                    bodyFont: { family: "Inter", size: 12 },
                     callbacks: {
                         label: (ctx) => {
                             let val = ctx.parsed.y ?? ctx.parsed;
                             if (typeof val === "number" && val > 999) {
                                 val = val.toLocaleString();
                             }
-                            return `${ctx.dataset.label}: ${val}`;
+                            return ` ${ctx.dataset.label}: ${val}`;
                         }
                     }
                 }
             },
             scales: isPie ? {} : {
                 x: {
-                    grid: { color: "rgba(255,255,255,0.04)" },
-                    ticks: { color: "#55556a", font: { family: "Inter", size: 11 }, maxRotation: 45 }
+                    grid: { color: "rgba(255,255,255,0.03)", drawBorder: false },
+                    ticks: { color: "#5e5e73", font: { family: "Inter", size: 11 }, maxRotation: 45 }
                 },
                 y: {
-                    grid: { color: "rgba(255,255,255,0.04)" },
+                    grid: { color: "rgba(255,255,255,0.03)", drawBorder: false },
                     ticks: {
-                        color: "#55556a",
+                        color: "#5e5e73",
                         font: { family: "Inter", size: 11 },
                         callback: (v) => (typeof v === "number" && v > 999 ? (v / 1000).toFixed(0) + "k" : v)
                     }
