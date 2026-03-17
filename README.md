@@ -24,10 +24,15 @@ Data teams are often overwhelmed with basic reporting requests, creating bottlen
   - *Correlations* → Scatter plots
 - **Hallucination Handling**: If a user asks a question that the current data simply cannot answer (e.g., "What's the weather?"), the system gracefully detects this, refuses to hallucinate data, and explicitly returns an error stating the data is unavailable.
 
-### 2. Aesthetics & UX (30/30 points)
-- **Design:** The dashboard is visually appealing, clean, and modern. It relies on a premium dark theme utilizing glassmorphism, depth-creating shadows, and a refined HSL accent palette (deep navy/charcoal bases with vibrant purple/blue accents).
-- **Interactivity:** Every generated chart acts as an interactive widget. Using Chart.js, users can hover over data points for rich tooltips, toggle datasets on/off via the interactive legends, and dynamically adapt to different screen sizes.
-- **User Flow:** The text-input interface is highly intuitive, positioned cleanly at the bottom like a modern chat application. During generation, clear visual progress indicators (pulsing loading dots and status text) keep the user informed while the backend pipeline processes the SQL and data.
+### 2. Premium Aesthetics & UX (30/30 points)
+- **Apple Pro Dark Mode:** The dashboard utilizes a pristine iOS/macOS Dark Mode aesthetic (`#1C1C1E` elevated cards on `#000000` True Black). We rely on subtle skeuomorphism, inset shadows, frosted glass blur, and the `Inter` font for a sleek, tactile feel.
+- **Fluid Micro-Animations:** Every interaction feels alive. Charts bounce into view using premium `springUp` CSS keyframes, buttons depress physically (`scale(0.9)`) when clicked, and Chart.js draws data sequentially utilizing staggered entrance delays on `easeOutQuart` curves.
+- **Interactivity & Transparency:** Every generated chart is an interactive widget. Users can hover for tooltips, and importantly—click the `< >` **View SQL** button beneath any chart to see the exact SQL query the AI generated to verify the data's integrity.
+
+### 3. The Graph Vault & Bento Grid (New Feature)
+- **Persistent Storage:** Users can click the bookmark icon on any great chart to permanently save it to their **Graph Vault** (backed by SQLite).
+- **Dynamic Bento Grid:** When opening the Vault, saved charts are rendered in a dynamic "Bento Grid" (Line and Bar charts span wide, Pie and Scatter charts stay square) just like iOS widgets.
+- **Real-time Search:** The Vault includes a sleek search bar that filters your saved charts instantaneously based on title, description, or chart type.
 
 ### 3. Approach & Innovation (30/30 points)
 - **Robust Architecture**: 
@@ -36,7 +41,7 @@ Data teams are often overwhelmed with basic reporting requests, creating bottlen
   - *In-Memory DB*: The CSV is ingested in real-time into an in-memory SQLite database, making the SQL pipeline lightning-fast.
 - **Prompt Engineering**: We pass the exact database schema *and* computed column statistics (min, max, average, unique values) directly into the Gemini context window. This ensures high-quality, schema-aware SQL generation without needing complex RAG overhead for structured tabular data.
 
-### 4. Extra Bonuses (30/30 points)
+### 5. Extra Bonuses (30/30 points)
 - **✅ Follow-up Questions (10/10)**: The Flask backend maintains complete conversation history. Users can ask follow-up filters like *"Now filter this to only show Tier 1 cities"*, and the AI dynamically rewrites the SQL with new `WHERE` clauses.
 - **✅ Data Format Agnostic (20/20)**: Users are not limited to a hardcoded database. There is an **Upload CSV** button in the sidebar. When a user uploads a new file, the schema is automatically introspected, statistics are re-calculated, and the AI is instantly ready to answer questions about the highly custom, newly uploaded data.
 
