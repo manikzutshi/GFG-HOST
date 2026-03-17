@@ -254,7 +254,7 @@ html, body {
 /* ─── Chat Messages ─── */
 .message-block {
     margin-bottom: 32px;
-    animation: slideUp 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+    animation: springUp 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
 }
 
 .user-message {
@@ -353,8 +353,8 @@ html, body {
     border: 1px solid var(--border);
     border-radius: 24px;
     padding: 24px;
-    transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-    animation: fadeInScale 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    animation: springUp 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.1) both;
     box-shadow: var(--shadow-elevated), var(--glass-shadow);
     display: flex;
     flex-direction: column;
@@ -419,11 +419,12 @@ html, body {
 .btn-icon:hover {
     background: var(--bg-card-hover);
     color: var(--accent);
-    transform: scale(1.05);
+    transform: scale(1.1) translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3), var(--glass-shadow);
 }
 
 .btn-icon:active {
-    transform: scale(0.95);
+    transform: scale(0.9);
 }
 
 .chart-container {
@@ -726,9 +727,15 @@ html, body {
     to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes springUp {
+    0% { opacity: 0; transform: translateY(30px) scale(0.95); }
+    60% { opacity: 1; transform: translateY(-5px) scale(1.01); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 @keyframes fadeInScale {
-    from { opacity: 0; transform: scale(0.94); }
-    to { opacity: 1; transform: scale(1); }
+    from { opacity: 0; transform: scale(0.94) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 @keyframes bounce {

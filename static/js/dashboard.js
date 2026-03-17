@@ -133,7 +133,7 @@ vaultBtn.addEventListener("click", async () => {
                 const bentoClass = isWide ? "bento-wide" : "";
 
                 return `
-                    <div class="chart-card ${bentoClass}">
+                    <div class="chart-card ${bentoClass}" style="animation-delay: ${i * 0.05}s">
                         <div class="chart-card-header">
                             <h3>${escapeHtml(c.title)}</h3>
                             <div class="card-actions-wrapper">
@@ -456,8 +456,9 @@ function renderChart(canvas, chartConfig) {
             maintainAspectRatio: false,
             indexAxis,
             animation: {
-                duration: 1200,
-                easing: 'easeOutQuart'
+                duration: 1600,
+                easing: 'easeOutQuart',
+                delay: (context) => context.dataIndex * 50
             },
             interaction: { mode: "index", intersect: false },
             plugins: {
