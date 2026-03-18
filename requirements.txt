@@ -2,5 +2,4 @@ flask
 pandas
 google-genai
 python-dotenv
-
-supabase
+psycopg2-binary
