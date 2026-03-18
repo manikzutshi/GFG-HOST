@@ -57,8 +57,12 @@ RULES:
    - Multi-dimensional profiles → radar
    - Distributions → bar (with GROUP BY buckets)
    
-   CRITICAL CHART RULES:
+   CRITICAL CHART DIVERSITY RULES:
    - NEVER use a bar chart when comparing two continuous numeric columns. Use a scatter chart.
+   - You MUST use at least 2 DIFFERENT chart types across 'charts' and 'suggested_queries' combined (e.g., one bar + one scatter, or one pie + one line).
+   - If you generate 2 primary charts, they MUST be DIFFERENT chart types (never two bar charts).
+   - Prefer variety: scatter, line, doughnut, pie, radar, polarArea are underused. Use them!
+   - When a column has few unique values (< 6), prefer pie or doughnut over bar.
    
 7. Generate 1-2 primary 'charts' to answer the immediate question. Then, generate 2-3 additional 'suggested_queries' that the user can optionally generate. Make sure the SQL for each is genuinely useful.
 8. If the user's question CANNOT be answered from this dataset, respond with an error JSON.

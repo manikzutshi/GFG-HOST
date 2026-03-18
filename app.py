@@ -39,11 +39,35 @@ def index():
 def handle_query():
     body = request.get_json()
     user_query = body.get("query", "").strip()
+    parent_id = body.get("parent_id", None)
     if not user_query:
         return jsonify({"error": "Empty query."}), 400
 
     try:
         result = gemini_service.query(user_query, schema_text, column_stats)
+        
+        # Store this prompt-response pair as a node in the conversation tree
+        try:
+            import uuid
+            node_id = str(uuid.uuid4())[:8]
+            tree_row = {
+                "id": node_id,
+                "prompt": user_query,
+                "response_data": result,
+                "parent_id": parent_id
+            }
+            headers = supabase_headers()
+            headers["Prefer"] = "return=representation"
+            http_requests.post(
+                supabase_url("conversation_tree"),
+                headers=headers,
+                json=tree_row,
+                timeout=10
+            )
+            result["node_id"] = node_id
+        except Exception as tree_err:
+            print(f"Warning: Could not save to conversation_tree: {tree_err}")
+        
         return jsonify(result)
     except Exception as e:
         print("Error handling query:")
@@ -91,6 +115,43 @@ def supabase_headers():
 def supabase_url(table):
     base = os.getenv("SUPABASE_URL", "").rstrip("/")
     return f"{base}/rest/v1/{table}"
+
+
+@app.route("/api/history/tree", methods=["GET"])
+def get_history_tree():
+    try:
+        url = supabase_url("conversation_tree") + "?select=id,prompt,parent_id,created_at&order=created_at.asc"
+        resp = http_requests.get(url, headers=supabase_headers(), timeout=10)
+        if resp.status_code == 200:
+            return jsonify({"nodes": resp.json()})
+        else:
+            return jsonify({"error": f"Supabase error: {resp.text}"}), 500
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": f"Failed to load tree: {str(e)}"}), 500
+
+
+@app.route("/api/history/node/<node_id>", methods=["GET"])
+def get_history_node(node_id):
+    try:
+        url = supabase_url("conversation_tree") + f"?id=eq.{node_id}&select=*"
+        resp = http_requests.get(url, headers=supabase_headers(), timeout=10)
+        if resp.status_code == 200:
+            rows = resp.json()
+            if rows:
+                row = rows[0]
+                return jsonify({
+                    "node_id": row["id"],
+                    "prompt": row["prompt"],
+                    "response_data": row["response_data"],
+                    "parent_id": row["parent_id"]
+                })
+            return jsonify({"error": "Node not found"}), 404
+        else:
+            return jsonify({"error": f"Supabase error: {resp.text}"}), 500
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": f"Failed to load node: {str(e)}"}), 500
 
 
 def init_vault():

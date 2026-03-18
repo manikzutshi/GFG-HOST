@@ -28,6 +28,8 @@ const CHART_COLORS = [
 
 let chartInstances = [];
 let msgBlockIdCounter = 0;
+let currentMindmapNode = null;
+const mindmapNetworkContainer = document.getElementById("mindmapNetwork");
 
 // ==========================================
 // SESSION MANAGEMENT (True Multi-Chat)
@@ -231,145 +233,104 @@ csvUpload.addEventListener("change", async (e) => {
     csvUpload.value = "";
 });
 
-/* ─── Mindmap Logic ─── */
-mindmapBtn.addEventListener("click", () => {
-    document.body.classList.remove("vault-active");
+/* ─── Mindmap Feature ─── */
+mindmapBtn.addEventListener("click", async () => {
+    document.body.classList.add("vault-active");
     chatArea.style.display = "none";
     inputBar.style.display = "none";
     vaultArea.style.display = "none";
-    mindmapArea.style.display = "block";
-    renderMindmap();
-});
-
-let networkInstance = null;
-
-function renderMindmap() {
-    if (!window.vis) {
-        console.error("vis-network library not loaded.");
-        return;
-    }
-
-    const nodes = new vis.DataSet();
-    const edges = new vis.DataSet();
-
-    nodes.add({ 
-        id: "root", 
-        label: "Dataset Uploaded", 
-        shape: "database", 
-        color: { background: "rgba(10, 132, 255, 0.15)", border: "#0A84FF" }, 
-        font: { color: "#FFFFFF", face: "Inter", size: 14 },
-        margin: 14,
-        borderWidth: 2
-    });
-
-    appSessions.forEach(sess => {
-        let lastNodeId = "root";
-
-        // Resolve branching parent if this session was branched from a historical node
-        if (sess.parentSessionId && sess.parentMsgIndex !== undefined) {
-             const parentSess = appSessions.find(s => s.id === sess.parentSessionId);
-             if (parentSess && parentSess.messages[sess.parentMsgIndex]) {
-                 lastNodeId = parentSess.messages[sess.parentMsgIndex].domId;
-             }
+    mindmapArea.style.display = "flex";
+    
+    mindmapNetworkContainer.innerHTML = `<div class="loading-indicator" style="height:100%; display:flex; justify-content:center; align-items:center;"><span class="loading-text">Building Conversation Tree...</span></div>`;
+    
+    try {
+        const res = await fetch("/api/history/tree");
+        const data = await res.json();
+        
+        if (data.error || !data.nodes || data.nodes.length === 0) {
+            mindmapNetworkContainer.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 40px;">No conversation history yet. Start asking questions to build your Mindmap!</div>`;
+            return;
         }
-
-        sess.messages.forEach((msg, idx) => {
-            if (msg.type === "user") {
-                const nodeId = msg.domId;
-                
-                // Format text beautifully
-                let labelText = msg.content;
-                if (labelText.length > 30) labelText = labelText.substring(0, 30) + "...";
-
-                // Determine styling based on active session
-                const isActive = (sess.id === currentSessionId);
-                const bg = isActive ? "rgba(48, 209, 88, 0.15)" : "#1C1C1E";
-                const border = isActive ? "#30D158" : "rgba(255,255,255,0.1)";
-
-                // Add Node
-                nodes.add({
-                    id: nodeId,
-                    label: labelText,
-                    shape: "box",
-                    color: { background: bg, border: border },
-                    font: { color: "#FFFFFF", face: "Inter", size: 14 },
-                    margin: 14,
-                    borderWidth: isActive ? 2 : 1,
-                    shadow: true,
-                    // Stash interaction payload
-                    sessId: sess.id,
-                    msgIndex: idx
-                });
-
-                // Add Edge connecting parent to child
-                edges.add({
-                    from: lastNodeId,
-                    to: nodeId,
-                    color: { color: "#48484A" },
-                    arrows: "to"
-                });
-
-                lastNodeId = nodeId;
+        
+        mindmapNetworkContainer.innerHTML = "";
+        
+        const nodes = new vis.DataSet(data.nodes.map(n => ({
+            id: n.id,
+            label: n.prompt.length > 25 ? n.prompt.substring(0, 25) + '...' : n.prompt,
+            title: n.prompt,
+            color: n.id === currentMindmapNode ? { background: '#0A84FF', border: '#64D2FF' } : { background: '#1C1C1E', border: '#48484A' },
+            font: { color: '#F5F5F7', face: 'Inter' },
+            shape: 'box',
+            margin: 12,
+            borderWidth: 2,
+            shadow: { enabled: true, color: 'rgba(0,0,0,0.5)', size: 10, x: 0, y: 4 }
+        })));
+        
+        const edges = new vis.DataSet(data.nodes.filter(n => n.parent_id !== null).map(n => ({
+            from: n.parent_id,
+            to: n.id,
+            color: { color: '#48484A', highlight: '#0A84FF' },
+            width: 2,
+            arrows: { to: { enabled: true, scaleFactor: 0.5 } },
+            smooth: { type: 'cubicBezier', forceDirection: 'vertical', roundness: 0.4 }
+        })));
+        
+        const container = mindmapNetworkContainer;
+        const netData = { nodes: nodes, edges: edges };
+        const options = {
+            layout: { randomSeed: 42 },
+            physics: { 
+                solver: 'repulsion',
+                repulsion: {
+                    nodeDistance: 250,
+                    springLength: 250,
+                    springConstant: 0.05
+                }
+            },
+            interaction: { hover: true, tooltipDelay: 200 }
+        };
+        
+        if (networkInstance) networkInstance.destroy();
+        networkInstance = new vis.Network(container, netData, options);
+        
+        networkInstance.on("click", async function (params) {
+            if (params.nodes.length > 0) {
+                const nodeId = params.nodes[0];
+                if(confirm("Jump back to this point in the conversation?")) {
+                    mindmapNetworkContainer.innerHTML = `<div class="loading-indicator" style="height:100%; display:flex; justify-content:center; align-items:center;"><span class="loading-text">Time-Traveling...</span></div>`;
+                    
+                    try {
+                        const nodeRes = await fetch(`/api/history/node/${nodeId}`);
+                        const nodeData = await nodeRes.json();
+                        
+                        if(!nodeData.error) {
+                            document.body.classList.remove("vault-active");
+                            mindmapArea.style.display = "none";
+                            chatArea.style.display = "block";
+                            inputBar.style.display = "block";
+                            
+                            chatArea.innerHTML = "";
+                            chatArea.appendChild(welcomeScreen);
+                            welcomeScreen.style.display = "none";
+                            destroyAllCharts();
+                            
+                            currentMindmapNode = nodeData.node_id;
+                            
+                            appendUserMessage(nodeData.prompt);
+                            nodeData.response_data.node_id = nodeData.node_id;
+                            appendDashboard(nodeData.response_data);
+                        }
+                    } catch (err) {
+                        alert("Failed to travel to this node.");
+                    }
+                }
             }
         });
-    });
-
-    const data = { nodes, edges };
-    const options = {
-        layout: {
-            hierarchical: {
-                direction: "UD",
-                sortMethod: "directed",
-                nodeSpacing: 250,
-                levelSeparation: 120
-            }
-        },
-        physics: { enabled: false },
-        interaction: { hover: true, tooltipDelay: 200 }
-    };
-
-    if (networkInstance) {
-        networkInstance.destroy();
+        
+    } catch (err) {
+        mindmapNetworkContainer.innerHTML = `<div class="chart-error">⚠ Failed to load mindmap.</div>`;
     }
-    networkInstance = new vis.Network(mindmapNetwork, data, options);
-
-    networkInstance.on("doubleClick", function (params) {
-        if (params.nodes.length > 0) {
-            const nodeId = params.nodes[0];
-            if (nodeId === "root") return;
-            
-            const nodeData = nodes.get(nodeId);
-            if (nodeData && nodeData.sessId) {
-                branchSessionFromNode(nodeData.sessId, nodeData.msgIndex);
-            }
-        }
-    });
-}
-
-function branchSessionFromNode(sourceSessionId, msgIndex) {
-    const sourceSess = appSessions.find(s => s.id === sourceSessionId);
-    if (!sourceSess) return;
-
-    const newSess = {
-        id: "sess_" + Date.now(),
-        title: sourceSess.title + " (Branch)",
-        messages: JSON.parse(JSON.stringify(sourceSess.messages.slice(0, msgIndex + 2))),
-        parentSessionId: sourceSess.id,
-        parentMsgIndex: msgIndex 
-    };
-    appSessions.push(newSess);
-    localStorage.setItem("insightAiSessions", JSON.stringify(appSessions));
-    
-    // Animate navigation back to Chat View seamlessly
-    document.body.classList.remove("vault-active");
-    mindmapArea.style.display = "none";
-    vaultArea.style.display = "none";
-    chatArea.style.display = "block";
-    inputBar.style.display = "block";
-    
-    renderSidebarHistory();
-    loadSession(newSess.id);
-}
+});
 
 /* ─── Vault Feature ─── */
 vaultBtn.addEventListener("click", async () => {
@@ -510,6 +471,7 @@ vaultBtn.addEventListener("click", async () => {
 async function handleSend() {
     document.body.classList.remove("vault-active");
     vaultArea.style.display = "none";
+    mindmapArea.style.display = "none";
     chatArea.style.display = "block";
     inputBar.style.display = "block";
     
@@ -534,7 +496,7 @@ async function handleSend() {
         const res = await fetch("/api/query", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ query: text })
+            body: JSON.stringify({ query: text, parent_id: currentMindmapNode })
         });
         const data = await res.json();
         loadingEl.remove();
@@ -542,9 +504,10 @@ async function handleSend() {
         if (data.error) {
             appendError(data.error);
         } else {
-            const domId = `msg-${msgBlockIdCounter++}`;
-            appendDashboard(data, domId);
-            saveToSession("dashboard", data, domId);
+            currentMindmapNode = data.node_id || currentMindmapNode;
+            const dashDomId = `msg-${msgBlockIdCounter++}`;
+            appendDashboard(data, dashDomId);
+            saveToSession("dashboard", data, dashDomId);
         }
     } catch (err) {
         loadingEl.remove();
