@@ -190,6 +190,63 @@ def delete_vault_chart(chart_id):
         return jsonify({"error": f"Failed to delete chart: {str(e)}"}), 500
 
 
+@app.route("/api/sessions", methods=["GET"])
+def get_sessions():
+    try:
+        url = supabase_url("insight_sessions") + "?select=*&order=created_at.desc"
+        resp = http_requests.get(url, headers=supabase_headers(), timeout=10)
+        
+        if resp.status_code == 200:
+            return jsonify(resp.json())
+        else:
+            return jsonify({"error": f"Supabase error: {resp.text}"}), 500
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": f"Failed to retrieve sessions: {str(e)}"}), 500
+
+
+@app.route("/api/sessions", methods=["POST"])
+def save_session():
+    try:
+        session = request.json
+        headers = supabase_headers()
+        headers["Prefer"] = "resolution=merge-duplicates"
+        
+        payload = {
+            "id": session["id"],
+            "title": session.get("title", "New Chat"),
+            "messages": session.get("messages", []),
+            "parent_session_id": session.get("parentSessionId"),
+            "parent_msg_index": session.get("parentMsgIndex")
+        }
+        
+        url_post = supabase_url("insight_sessions")
+        resp = http_requests.post(url_post, headers=headers, json=payload, timeout=10)
+            
+        if resp.status_code in (200, 201, 204):
+            return jsonify({"message": "Session saved."})
+        else:
+            return jsonify({"error": f"Supabase error: {resp.text}"}), 500
+            
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": f"Failed to save session: {str(e)}"}), 500
+
+
+@app.route("/api/sessions/<session_id>", methods=["DELETE"])
+def delete_session(session_id):
+    try:
+        url = supabase_url("insight_sessions") + f"?id=eq.{session_id}"
+        resp = http_requests.delete(url, headers=supabase_headers(), timeout=10)
+
+        if resp.status_code in (200, 204):
+            return jsonify({"message": "Session removed successfully."})
+        else:
+            return jsonify({"error": f"Supabase error: {resp.text}"}), 500
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": f"Failed to delete session: {str(e)}"}), 500
+
 # Initialize data globally
 try:
     init_data(DEFAULT_CSV)

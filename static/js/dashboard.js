@@ -32,23 +32,37 @@ let msgBlockIdCounter = 0;
 // ==========================================
 // SESSION MANAGEMENT (True Multi-Chat)
 // ==========================================
-let appSessions = JSON.parse(localStorage.getItem("insightAiSessions") || "[]");
+let appSessions = [];
 let currentSessionId = null;
 
-function saveToSession(type, content, domId) {
+window.addEventListener("DOMContentLoaded", async () => {
+    try {
+        const res = await fetch("/api/sessions");
+        const data = await res.json();
+        if (data && !data.error) {
+            appSessions = data;
+            renderSidebarHistory();
+        }
+    } catch (e) {
+        console.error("Error loading sessions from Supabase", e);
+    }
+});
+
+async function saveToSession(type, content, domId) {
     if (!currentSessionId) {
-        // Create new session
         currentSessionId = "sess_" + Date.now();
-        // Try to generate a title from user text, else default
         const title = type === "user" ? (content.substring(0, 30) + "...") : "New Analytics Chat";
         appSessions.push({ id: currentSessionId, title, messages: [] });
     }
     
-    // Find active session
     const session = appSessions.find(s => s.id === currentSessionId);
     if (session) {
         session.messages.push({ type, content, domId });
-        localStorage.setItem("insightAiSessions", JSON.stringify(appSessions));
+        fetch("/api/sessions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(session)
+        }).catch(err => console.error(err));
     }
     
     renderSidebarHistory();
@@ -68,6 +82,15 @@ function loadSession(sessionId) {
     if (!session) return;
     
     currentSessionId = sessionId;
+    
+    // Fix UI bug: Ensure chat area is visible when a user clicks a historical session from anywhere
+    const mindmapArea = document.getElementById("mindmapArea");
+    document.body.classList.remove("vault-active");
+    if (mindmapArea) mindmapArea.style.display = "none";
+    vaultArea.style.display = "none";
+    chatArea.style.display = "block";
+    inputBar.style.display = "block";
+
     chatArea.innerHTML = "";
     welcomeScreen.style.display = "none";
     
@@ -81,6 +104,7 @@ function loadSession(sessionId) {
     });
     
     scrollToBottom();
+    renderSidebarHistory();
 }
 
 function renderSidebarHistory() {
@@ -88,22 +112,52 @@ function renderSidebarHistory() {
     if (!list) return;
     list.innerHTML = "";
     
-    // Show newest first
     const recent = [...appSessions].reverse().slice(0, 15);
     recent.forEach(sess => {
+        const wrapper = document.createElement("div");
+        wrapper.style.display = "flex";
+        wrapper.style.gap = "6px";
+        wrapper.style.alignItems = "center";
+        
         const btn = document.createElement("button");
         btn.className = "suggestion";
         btn.textContent = sess.title;
+        btn.style.flex = "1";
         btn.style.textAlign = "left";
         btn.style.whiteSpace = "nowrap";
         btn.style.overflow = "hidden";
         btn.style.textOverflow = "ellipsis";
-        if (sess.id === currentSessionId) {
-            btn.style.background = "rgba(108, 99, 255, 0.1)"; // highlight active
-            btn.style.border = "1px solid rgba(108, 99, 255, 0.5)";
-        }
+        
         btn.addEventListener("click", () => loadSession(sess.id));
-        list.appendChild(btn);
+        wrapper.appendChild(btn);
+
+        if (sess.id === currentSessionId) {
+            btn.style.background = "#2C2C2E"; // solid hover highlight
+            btn.style.border = "1px solid #30D158"; // green active border
+            btn.style.color = "#FFFFFF";
+            
+            // Delete button
+            const delBtn = document.createElement("button");
+            delBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FF3B30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+            delBtn.style.background = "transparent";
+            delBtn.style.border = "none";
+            delBtn.style.cursor = "pointer";
+            delBtn.style.padding = "6px";
+            delBtn.title = "Delete Chat";
+            
+            delBtn.addEventListener("click", async (e) => {
+                e.stopPropagation();
+                if(confirm("Delete this chat session and its branch history from the database?")) {
+                    appSessions = appSessions.filter(s => s.id !== sess.id);
+                    startNewSession();
+                    try {
+                        await fetch(`/api/sessions/${sess.id}`, { method: 'DELETE' });
+                    } catch(err) { console.error("Failed to delete from DB", err); }
+                }
+            });
+            wrapper.appendChild(delBtn);
+        }
+        list.appendChild(wrapper);
     });
 }
 
