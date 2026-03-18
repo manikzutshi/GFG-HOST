@@ -23,19 +23,44 @@ const CHART_COLORS = [
 ];
 
 let chartInstances = [];
+let msgBlockIdCounter = 0;
 
 // Chat History Management
 let chatHistory = JSON.parse(localStorage.getItem("insightAiHistory") || "[]");
 
-function saveToHistory(type, content) {
-    chatHistory.push({ type, content });
+function saveToHistory(type, content, domId) {
+    chatHistory.push({ type, content, domId });
     localStorage.setItem("insightAiHistory", JSON.stringify(chatHistory));
+    if (type === "user") renderSidebarHistory();
 }
 
 function clearHistory() {
     chatHistory = [];
     localStorage.removeItem("insightAiHistory");
+    renderSidebarHistory();
 }
+
+function renderSidebarHistory() {
+    const list = document.getElementById("sidebarHistoryList");
+    if (!list) return;
+    list.innerHTML = "";
+    const userPrompts = chatHistory.filter(h => h.type === "user");
+    userPrompts.slice(-10).forEach(prompt => {
+        const btn = document.createElement("button");
+        btn.className = "suggestion";
+        btn.textContent = prompt.content;
+        btn.style.textAlign = "left";
+        btn.style.whiteSpace = "nowrap";
+        btn.style.overflow = "hidden";
+        btn.style.textOverflow = "ellipsis";
+        btn.addEventListener("click", () => {
+            const el = document.getElementById(prompt.domId);
+            if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+        list.appendChild(btn);
+    });
+}
+
 
 /* ─── Auto-resize textarea ─── */
 queryInput.addEventListener("input", () => {
@@ -155,6 +180,9 @@ vaultBtn.addEventListener("click", async () => {
                                 <button class="btn-icon btn-view-sql-vault" title="View SQL" data-chart-index="${i}">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
                                 </button>
+                                <button class="btn-icon btn-remove-vault" title="Remove from Vault" data-chart-id="${c.id}">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                </button>
                             </div>
                         </div>
                         <div class="chart-container" style="height: 220px;">
@@ -187,6 +215,24 @@ vaultBtn.addEventListener("click", async () => {
                     } else {
                         sqlBlock.style.display = 'none';
                         btn.classList.remove('active');
+                    }
+                });
+            });
+
+            const vaultRemoveBtns = vaultGrid.querySelectorAll('.btn-remove-vault');
+            vaultRemoveBtns.forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    if(!confirm("Remove chart from vault?")) return;
+                    const chartId = btn.getAttribute('data-chart-id');
+                    try {
+                        const res = await fetch(`/api/vault/${chartId}`, { method: 'DELETE' });
+                        if(res.ok) {
+                            vaultBtn.click(); // Re-render vault
+                        } else {
+                            alert("Failed to delete chart.");
+                        }
+                    } catch(e) {
+                        alert("Error contacting server.");
                     }
                 });
             });
@@ -224,8 +270,9 @@ async function handleSend() {
         welcomeScreen.style.display = "none";
     }
 
-    appendUserMessage(text);
-    saveToHistory("user", text);
+    const domId = `msg-${msgBlockIdCounter++}`;
+    appendUserMessage(text, domId);
+    saveToHistory("user", text, domId);
     
     queryInput.value = "";
     queryInput.style.height = "auto";
@@ -245,8 +292,9 @@ async function handleSend() {
         if (data.error) {
             appendError(data.error);
         } else {
-            appendDashboard(data);
-            saveToHistory("dashboard", data);
+            const domId = `msg-${msgBlockIdCounter++}`;
+            appendDashboard(data, domId);
+            saveToHistory("dashboard", data, domId);
         }
     } catch (err) {
         loadingEl.remove();
@@ -258,9 +306,10 @@ async function handleSend() {
 }
 
 
-function appendUserMessage(text) {
+function appendUserMessage(text, domId) {
     const block = document.createElement("div");
     block.className = "message-block";
+    if (domId) block.id = domId;
     block.innerHTML = `
         <div class="user-message">
             <div class="user-bubble">${escapeHtml(text)}</div>
@@ -299,9 +348,10 @@ function appendError(message) {
 }
 
 
-function appendDashboard(data) {
+function appendDashboard(data, domId) {
     const block = document.createElement("div");
     block.className = "message-block";
+    if (domId) block.id = domId;
 
     let interpretationHtml = "";
     if (data.interpretation) {
@@ -346,8 +396,14 @@ function appendDashboard(data) {
                         <button class="btn-icon btn-view-sql" title="View SQL" data-chart-index="${idx}">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
                         </button>
-                        <button class="btn-icon btn-download-chart" title="Download PNG" data-canvas-id="${canvasId}" data-title="${escapeHtml(chart.title || "chart")}">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        <button class="btn-icon btn-dl-png" title="Download PNG" data-canvas-id="${canvasId}" data-idx="${idx}">
+                            <span style="font-size:10px; font-weight:bold;">PNG</span>
+                        </button>
+                        <button class="btn-icon btn-dl-pdf" title="Download PDF" data-canvas-id="${canvasId}" data-idx="${idx}">
+                            <span style="font-size:10px; font-weight:bold;">PDF</span>
+                        </button>
+                        <button class="btn-icon btn-dl-csv" title="Download CSV" data-idx="${idx}">
+                            <span style="font-size:10px; font-weight:bold;">CSV</span>
                         </button>
                         <button class="btn-icon save-vault-btn" title="Save to Vault" data-chart-index="${idx}">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
@@ -425,26 +481,33 @@ function appendDashboard(data) {
         });
     });
 
-    const downloadBtns = block.querySelectorAll('.btn-download-chart');
-    downloadBtns.forEach(btn => {
+    const csvBtns = block.querySelectorAll('.btn-dl-csv');
+    csvBtns.forEach(btn => {
         btn.addEventListener('click', () => {
-            const tempCanvas = document.getElementById(btn.getAttribute('data-canvas-id'));
-            if (!tempCanvas) return;
-            const link = document.createElement('a');
-            link.download = (btn.getAttribute('data-title') || 'chart') + '.png';
-            
-            // Add white background for download so transparet pixels look correct
-            const destinationCanvas = document.createElement("canvas");
-            destinationCanvas.width = tempCanvas.width;
-            destinationCanvas.height = tempCanvas.height;
-            const destCtx = destinationCanvas.getContext('2d');
-            destCtx.fillStyle = "#1e1e1e"; // Set a dark background matching the theme
-            destCtx.fillRect(0,0,tempCanvas.width,tempCanvas.height);
-            destCtx.drawImage(tempCanvas, 0, 0);
-            
-            link.href = destinationCanvas.toDataURL("image/png");
+            const cIdx = btn.getAttribute('data-idx');
+            const chartData = charts[cIdx].data;
+            if (!chartData || !chartData.length) return;
+            const keys = Object.keys(chartData[0]);
+            let csvContent = "data:text/csv;charset=utf-8," + keys.join(",") + "\\n" +
+                chartData.map(row => keys.map(k => '"' + (row[k]||'') + '"').join(",")).join("\\n");
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", (charts[cIdx].title || "data") + ".csv");
+            document.body.appendChild(link);
             link.click();
+            link.remove();
         });
+    });
+
+    const pngBtns = block.querySelectorAll('.btn-dl-png');
+    pngBtns.forEach(btn => {
+        btn.addEventListener('click', () => downloadImageOrPdf(btn, false, charts));
+    });
+
+    const pdfBtns = block.querySelectorAll('.btn-dl-pdf');
+    pdfBtns.forEach(btn => {
+        btn.addEventListener('click', () => downloadImageOrPdf(btn, true, charts));
     });
 
     const keepBtns = block.querySelectorAll('.btn-keep-option');
@@ -471,6 +534,70 @@ function appendDashboard(data) {
     scrollToBottom();
 }
 
+function downloadImageOrPdf(btn, isPdf, charts) {
+    const tempCanvas = document.getElementById(btn.getAttribute('data-canvas-id'));
+    if (!tempCanvas) return;
+    
+    const cIdx = btn.getAttribute('data-idx');
+    const chartConf = charts[cIdx];
+    const title = chartConf.title || "Chart";
+    const desc = chartConf.description || "";
+
+    const destinationCanvas = document.createElement("canvas");
+    destinationCanvas.width = tempCanvas.width + 40;
+    destinationCanvas.height = tempCanvas.height + 120; // Extra room for text
+    const destCtx = destinationCanvas.getContext('2d');
+    
+    destCtx.fillStyle = "#1e1e1e"; // Dark theme
+    destCtx.fillRect(0, 0, destinationCanvas.width, destinationCanvas.height);
+    
+    // Draw title
+    destCtx.fillStyle = "#ffffff";
+    destCtx.font = "bold 18px Helvetica, Arial, sans-serif";
+    destCtx.fillText(title, 20, 30);
+
+    // Draw description with basic word wrapping
+    destCtx.fillStyle = "#86868B";
+    destCtx.font = "14px Helvetica, Arial, sans-serif";
+    const words = desc.split(' ');
+    let line = '';
+    let y = 55;
+    for(let i = 0; i < words.length; i++) {
+        const testLine = line + words[i] + ' ';
+        const metrics = destCtx.measureText(testLine);
+        if(metrics.width > tempCanvas.width && i > 0) {
+            destCtx.fillText(line, 20, y);
+            line = words[i] + ' ';
+            y += 20;
+        } else {
+            line = testLine;
+        }
+    }
+    destCtx.fillText(line, 20, y);
+
+    // Draw chart canvas
+    destCtx.drawImage(tempCanvas, 20, Math.max(90, y + 20));
+
+    if (isPdf) {
+        if (!window.jspdf) {
+            alert("PDF export library is still loading. Please try again in a second.");
+            return;
+        }
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({ 
+            orientation: destinationCanvas.width > destinationCanvas.height ? 'l' : 'p', 
+            unit: 'px', 
+            format: [destinationCanvas.width, destinationCanvas.height] 
+        });
+        pdf.addImage(destinationCanvas.toDataURL("image/jpeg", 1.0), 'JPEG', 0, 0, destinationCanvas.width, destinationCanvas.height);
+        pdf.save(title + '.pdf');
+    } else {
+        const link = document.createElement('a');
+        link.download = title + '.png';
+        link.href = destinationCanvas.toDataURL("image/png");
+        link.click();
+    }
+}
 
 function renderChart(canvas, chartConfig) {
     const { type, data, x_column, y_columns, title } = chartConfig;
@@ -606,11 +733,12 @@ document.addEventListener("DOMContentLoaded", () => {
         welcomeScreen.style.display = "none";
         chatHistory.forEach(entry => {
             if (entry.type === "user") {
-                appendUserMessage(entry.content);
+                appendUserMessage(entry.content, entry.domId);
             } else if (entry.type === "dashboard") {
-                appendDashboard(entry.content);
+                appendDashboard(entry.content, entry.domId);
             }
         });
         scrollToBottom();
     }
+    renderSidebarHistory();
 });

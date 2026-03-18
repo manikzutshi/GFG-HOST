@@ -162,6 +162,22 @@ def get_vault_charts():
         return jsonify({"error": f"Failed to retrieve Vault charts: {str(e)}"}), 500
 
 
+@app.route("/api/vault/<int:chart_id>", methods=["DELETE"])
+def delete_vault_chart(chart_id):
+    try:
+        # For Supabase REST API, delete requires eq.id
+        url = supabase_url("saved_charts") + f"?id=eq.{chart_id}"
+        resp = http_requests.delete(url, headers=supabase_headers(), timeout=10)
+
+        if resp.status_code in (200, 204):
+            return jsonify({"message": "Chart removed from Vault successfully."})
+        else:
+            return jsonify({"error": f"Supabase error: {resp.text}"}), 500
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": f"Failed to delete chart: {str(e)}"}), 500
+
+
 # Initialize data globally
 try:
     init_data(DEFAULT_CSV)

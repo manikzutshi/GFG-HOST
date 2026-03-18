@@ -9,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css?v=7.0">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -28,9 +29,9 @@
             </div>
 
             <div class="sidebar-actions">
-                <button id="newChatBtn" class="btn-action" title="New conversation">
+                <button id="newChatBtn" class="btn-action" title="Clear chat history and start fresh">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    New Chat
+                    Clear Chat
                 </button>
                 <button id="vaultBtn" class="btn-action" title="View Saved Charts">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -56,6 +57,11 @@
                 <button class="suggestion" data-query="Show me the average monthly income by gender">Average income by gender</button>
                 <button class="suggestion" data-query="Compare online spend vs store spend across city tiers">Online vs store spend by city</button>
                 <button class="suggestion" data-query="What is the distribution of shopping preferences and how does tech savvy score relate to online orders?">Shopping preferences & tech impact</button>
+            </div>
+
+            <div class="sidebar-history" style="margin-top: 24px;">
+                <p class="suggestions-title">Recent Chats</p>
+                <div id="sidebarHistoryList" style="display: flex; flex-direction: column; gap: 8px;"></div>
             </div>
         </aside>
 
