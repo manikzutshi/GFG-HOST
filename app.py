@@ -146,6 +146,18 @@ def save_to_vault():
         return jsonify({"error": f"Failed to save chart to Vault: {str(e)}"}), 500
 
 
+@app.route("/api/execute_custom_chart", methods=["POST"])
+def execute_custom_chart():
+    try:
+        chart = request.json
+        rows = data_loader.run_query(chart["sql"])
+        chart["data"] = rows
+        return jsonify(chart)
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": f"Failed to generate custom chart: {str(e)}"}), 500
+
+
 @app.route("/api/vault", methods=["GET"])
 def get_vault_charts():
     try:

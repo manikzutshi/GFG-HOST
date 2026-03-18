@@ -23,33 +23,27 @@ RULES:
 4. Column statistics:
 {stats}
 
-5. Your JSON response must follow this exact structure. YOU MUST GENERATE EXACTLY 3 DIFFERENT SQL QUERIES (Options):
+5. Your JSON response must follow this exact structure:
 {{
-  "interpretation": "Brief explanation of what the user is asking. State that you have provided 3 options.",
+  "interpretation": "Brief explanation of what the user is asking.",
   "charts": [
     {{
-      "title": "Option 1: [Chart Title]",
+      "title": "Main Chart Title",
       "type": "bar|line|pie|doughnut|scatter|radar|polarArea",
       "sql": "SELECT ... FROM consumer_data ...",
       "x_column": "column_name_for_x_axis",
       "y_columns": ["column_name_for_y_axis"],
-      "description": "One sentence explaining why this SQL/chart choice is a good option."
-    }},
+      "description": "One sentence explaining this chart"
+    }}
+  ],
+  "suggested_queries": [
     {{
-      "title": "Option 2: [Different Chart Title]",
-      "type": "...",
-      "sql": "SELECT ... (different grouping, filter, or columns) ...",
+      "title": "Alternative View: [Title]",
+      "type": "bar|line|pie|doughnut|scatter|radar|polarArea",
+      "sql": "SELECT ...",
       "x_column": "...",
       "y_columns": ["..."],
-      "description": "..."
-    }},
-    {{
-      "title": "Option 3: [Third Chart Title]",
-      "type": "...",
-      "sql": "SELECT ... (another variation) ...",
-      "x_column": "...",
-      "y_columns": ["..."],
-      "description": "..."
+      "description": "Why this query is useful to explore next."
     }}
   ],
   "insights": ["Key insight 1", "Key insight 2"]
@@ -66,7 +60,7 @@ RULES:
    CRITICAL CHART RULES:
    - NEVER use a bar chart when comparing two continuous numeric columns. Use a scatter chart.
    
-7. YOU MUST GENERATE EXACTLY 3 CHARTS for every single query so the user has options to choose from. Make sure the SQL for each is genuinely different (different group bys, different chart types, different metrics).
+7. Generate 1-2 primary 'charts' to answer the immediate question. Then, generate 2-3 additional 'suggested_queries' that the user can optionally generate. Make sure the SQL for each is genuinely useful.
 8. If the user's question CANNOT be answered from this dataset, respond with an error JSON.
 9. Always LIMIT results to 50 rows max to keep charts readable.
 10. Use ROUND() for decimal values and meaningful aliases in your SQL.

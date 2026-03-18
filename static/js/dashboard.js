@@ -398,6 +398,54 @@ function appendError(message) {
 }
 
 
+function createChartCardHtml(chart, idx, canvasId) {
+    if (chart.error) {
+        return `
+            <div class="chart-card" style="animation-delay:${idx * 0.1}s">
+                <div class="chart-card-header">
+                    <h3>${escapeHtml(chart.title || "Chart")}</h3>
+                </div>
+                <div class="chart-error">⚠ ${escapeHtml(chart.error)}</div>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="chart-card option-card" data-idx="${idx}" style="animation-delay:${idx * 0.1}s">
+            <div class="chart-card-header">
+                <h3>${escapeHtml(chart.title || "Chart")}</h3>
+                <div class="card-actions-wrapper">
+                    <span class="chart-type-badge">${escapeHtml(chart.type || "bar")}</span>
+                    <button class="btn-icon btn-view-sql" title="View SQL" data-chart-index="${idx}">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+                    </button>
+                    <button class="btn-icon btn-dl-png" title="Download PNG" data-canvas-id="${canvasId}" data-idx="${idx}">
+                        <span style="font-size:10px; font-weight:bold;">PNG</span>
+                    </button>
+                    <button class="btn-icon btn-dl-pdf" title="Download PDF" data-canvas-id="${canvasId}" data-idx="${idx}">
+                        <span style="font-size:10px; font-weight:bold;">PDF</span>
+                    </button>
+                    <button class="btn-icon btn-dl-csv" title="Download CSV" data-idx="${idx}">
+                        <span style="font-size:10px; font-weight:bold;">CSV</span>
+                    </button>
+                    <button class="btn-icon save-vault-btn" title="Save to Vault" data-chart-index="${idx}">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="${canvasId}"></canvas>
+            </div>
+            ${chart.description ? `<p class="chart-description">${escapeHtml(chart.description)}</p>` : ""}
+            <button class="btn-keep-option" data-idx="${idx}">Keep This Option</button>
+            <div class="sql-code-block" id="sql-block-${idx}" style="display: none;">
+                <div class="sql-header">Generated SQL Query</div>
+                <pre><code>${escapeHtml(chart.sql || "No SQL available")}</code></pre>
+            </div>
+        </div>
+    `;
+}
+
 function appendDashboard(data, domId) {
     const block = document.createElement("div");
     block.className = "message-block";
@@ -420,63 +468,40 @@ function appendDashboard(data, domId) {
         ).join("")}</div>`;
     }
 
-    const charts = data.charts || [];
+    data.charts = data.charts || [];
+    let charts = data.charts;
     const gridClass = `charts-${Math.min(charts.length, 4)}`;
 
     let cardsHtml = charts.map((chart, idx) => {
         const canvasId = `chart-${Date.now()}-${idx}`;
-
-        if (chart.error) {
-            return `
-                <div class="chart-card" style="animation-delay:${idx * 0.1}s">
-                    <div class="chart-card-header">
-                        <h3>${escapeHtml(chart.title || "Chart")}</h3>
-                    </div>
-                    <div class="chart-error">⚠ ${escapeHtml(chart.error)}</div>
-                </div>
-            `;
-        }
-
-        return `
-            <div class="chart-card option-card" data-idx="${idx}" style="animation-delay:${idx * 0.1}s">
-                <div class="chart-card-header">
-                    <h3>${escapeHtml(chart.title || "Chart")}</h3>
-                    <div class="card-actions-wrapper">
-                        <span class="chart-type-badge">${escapeHtml(chart.type || "bar")}</span>
-                        <button class="btn-icon btn-view-sql" title="View SQL" data-chart-index="${idx}">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
-                        </button>
-                        <button class="btn-icon btn-dl-png" title="Download PNG" data-canvas-id="${canvasId}" data-idx="${idx}">
-                            <span style="font-size:10px; font-weight:bold;">PNG</span>
-                        </button>
-                        <button class="btn-icon btn-dl-pdf" title="Download PDF" data-canvas-id="${canvasId}" data-idx="${idx}">
-                            <span style="font-size:10px; font-weight:bold;">PDF</span>
-                        </button>
-                        <button class="btn-icon btn-dl-csv" title="Download CSV" data-idx="${idx}">
-                            <span style="font-size:10px; font-weight:bold;">CSV</span>
-                        </button>
-                        <button class="btn-icon save-vault-btn" title="Save to Vault" data-chart-index="${idx}">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-                        </button>
-                    </div>
-                </div>
-                <div class="chart-container">
-                    <canvas id="${canvasId}"></canvas>
-                </div>
-                ${chart.description ? `<p class="chart-description">${escapeHtml(chart.description)}</p>` : ""}
-                <button class="btn-keep-option" data-idx="${idx}">Keep This Option</button>
-                <div class="sql-code-block" id="sql-block-${idx}" style="display: none;">
-                    <div class="sql-header">Generated SQL Query</div>
-                    <pre><code>${escapeHtml(chart.sql || "No SQL available")}</code></pre>
-                </div>
-            </div>
-        `;
+        chart.canvasId = canvasId; // Store it for later lookup if needed
+        return createChartCardHtml(chart, idx, canvasId);
     }).join("");
+
+    let suggestedHtml = "";
+    if (data.suggested_queries && data.suggested_queries.length > 0) {
+        suggestedHtml = `<div class="suggested-queries-section" style="margin-top: 32px; margin-bottom: 24px;">
+            <h4 style="margin-bottom: 12px; font-size: 0.95rem; color: var(--text-secondary);">Suggested Explorations</h4>
+            <div class="suggested-grid" style="display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+            ${data.suggested_queries.map((q, idx) => `
+                <div class="suggested-card" id="suggested-card-${domId}-${idx}" style="background: var(--bg-card); border: 1px solid var(--border); padding: 16px; border-radius: 12px;">
+                    <h5 style="margin-bottom: 8px; font-size: 1rem; color: var(--text-primary);">${escapeHtml(q.title || "Query Option")}</h5>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px; line-height: 1.4;">${escapeHtml(q.description || "")}</p>
+                    <button class="btn-action generate-suggested-btn" data-query-idx="${idx}" style="width: 100%; justify-content: center; font-size: 0.85rem; padding: 8px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                        Generate Chart
+                    </button>
+                </div>
+            `).join('')}
+            </div>
+        </div>`;
+    }
 
     block.innerHTML = `
         <div class="ai-response">
             ${interpretationHtml}
-            <div class="dashboard-grid ${gridClass}">${cardsHtml}</div>
+            <div class="dashboard-grid ${gridClass}" id="grid-${domId}">${cardsHtml}</div>
+            ${suggestedHtml}
             ${insightsHtml}
             <div style="margin-top: 16px; text-align: right;">
                 <button class="btn-executive-export">
@@ -567,6 +592,133 @@ function appendDashboard(data, domId) {
         });
     }
 
+    const generateBtns = block.querySelectorAll('.generate-suggested-btn');
+    generateBtns.forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const idx = btn.getAttribute('data-query-idx');
+            const qConfig = data.suggested_queries[idx];
+            
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = `<span style="opacity:0.7">Generating...</span>`;
+            btn.disabled = true;
+            
+            try {
+                const res = await fetch("/api/execute_custom_chart", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(qConfig)
+                });
+                const newChartConfig = await res.json();
+                
+                if (newChartConfig.error) {
+                    alert("Failed to generate: " + newChartConfig.error);
+                    btn.innerHTML = originalHtml;
+                    btn.disabled = false;
+                    return;
+                }
+                
+                const newIdx = charts.length;
+                charts.push(newChartConfig);
+                const canvasId = `chart-${Date.now()}-${newIdx}`;
+                newChartConfig.canvasId = canvasId;
+                
+                const newCardHtml = createChartCardHtml(newChartConfig, newIdx, canvasId);
+                const suggestedCard = block.querySelector(`#suggested-card-${domId}-${idx}`);
+                suggestedCard.outerHTML = newCardHtml;
+                
+                const newCard = block.querySelector(`.option-card[data-idx="${newIdx}"]`);
+                const newlyAddedCanvas = newCard.querySelector(`#${canvasId}`);
+                if (newlyAddedCanvas) renderChart(newlyAddedCanvas, newChartConfig);
+                
+                // Rebind View SQL
+                const sqlBtn = newCard.querySelector('.btn-view-sql');
+                if (sqlBtn) {
+                    sqlBtn.addEventListener('click', () => {
+                        const sqlBlock = newCard.querySelector(`.sql-code-block`);
+                        if (sqlBlock.style.display === 'none') {
+                            sqlBlock.style.display = 'block';
+                            sqlBtn.classList.add('active');
+                        } else {
+                            sqlBlock.style.display = 'none';
+                            sqlBtn.classList.remove('active');
+                        }
+                    });
+                }
+                
+                // Rebind PNG/PDF
+                const pngBtn = newCard.querySelector('.btn-dl-png');
+                if (pngBtn) pngBtn.addEventListener('click', () => downloadImageOrPdf(pngBtn, false, charts));
+                const pdfBtn = newCard.querySelector('.btn-dl-pdf');
+                if (pdfBtn) pdfBtn.addEventListener('click', () => downloadImageOrPdf(pdfBtn, true, charts));
+                
+                // Rebind CSV
+                const csvBtn = newCard.querySelector('.btn-dl-csv');
+                if (csvBtn) {
+                    csvBtn.addEventListener('click', () => {
+                        const chartData = charts[newIdx].data;
+                        if (!chartData || !chartData.length) return;
+                        const keys = Object.keys(chartData[0]);
+                        let csvContent = "data:text/csv;charset=utf-8," + keys.join(",") + "\\n" +
+                            chartData.map(row => keys.map(k => '"' + (row[k]||'') + '"').join(",")).join("\\n");
+                        const encodedUri = encodeURI(csvContent);
+                        const link = document.createElement("a");
+                        link.setAttribute("href", encodedUri);
+                        link.setAttribute("download", (charts[newIdx].title || "data") + ".csv");
+                        document.body.appendChild(link);
+                        link.click();
+                        link.remove();
+                    });
+                }
+                
+                // Rebind Save Vault
+                const saveBtn = newCard.querySelector('.save-vault-btn');
+                if (saveBtn) {
+                    saveBtn.addEventListener('click', async () => {
+                        newChartConfig.sql = newChartConfig.sql || "";
+                        saveBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+                        saveBtn.disabled = true;
+                        saveBtn.style.pointerEvents = 'none';
+                        saveBtn.style.borderColor = "var(--success)";
+                        try {
+                            await fetch('/api/vault', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(newChartConfig)
+                            });
+                        } catch (err) {
+                            console.error("Failed to save to vault", err);
+                            saveBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--error)" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+                        }
+                    });
+                }
+                
+                // Rebind Keep Option
+                const keepBtn = newCard.querySelector('.btn-keep-option');
+                if (keepBtn) {
+                    keepBtn.addEventListener('click', () => {
+                        const allCards = block.querySelectorAll('.option-card');
+                        allCards.forEach(card => {
+                            if (card.getAttribute('data-idx') !== String(newIdx)) {
+                                card.style.display = 'none';
+                            } else {
+                                card.style.gridColumn = '1 / -1';
+                                keepBtn.style.display = 'none';
+                            }
+                        });
+                        const grid = block.querySelector('.dashboard-grid');
+                        if (grid) grid.className = "dashboard-grid charts-1";
+                    });
+                }
+                
+            } catch(err) {
+                console.error(err);
+                alert("Error generating chart.");
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            }
+        });
+    });
+
     scrollToBottom();
 }
 
@@ -578,8 +730,8 @@ function bindDownloadButtons(container, chartsArray) {
             const chartData = chartsArray[cIdx].data;
             if (!chartData || !chartData.length) return;
             const keys = Object.keys(chartData[0]);
-            let csvContent = "data:text/csv;charset=utf-8," + keys.join(",") + "\\n" +
-                chartData.map(row => keys.map(k => '"' + (row[k]||'') + '"').join(",")).join("\\n");
+            let csvContent = "data:text/csv;charset=utf-8," + keys.join(",") + "\n" +
+                chartData.map(row => keys.map(k => '"' + (row[k]||'') + '"').join(",")).join("\n");
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
