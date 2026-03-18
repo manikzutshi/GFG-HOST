@@ -24,6 +24,19 @@ const CHART_COLORS = [
 
 let chartInstances = [];
 
+// Chat History Management
+let chatHistory = JSON.parse(localStorage.getItem("insightAiHistory") || "[]");
+
+function saveToHistory(type, content) {
+    chatHistory.push({ type, content });
+    localStorage.setItem("insightAiHistory", JSON.stringify(chatHistory));
+}
+
+function clearHistory() {
+    chatHistory = [];
+    localStorage.removeItem("insightAiHistory");
+}
+
 /* ─── Auto-resize textarea ─── */
 queryInput.addEventListener("input", () => {
     queryInput.style.height = "auto";
@@ -59,6 +72,7 @@ newChatBtn.addEventListener("click", async () => {
     chatArea.appendChild(welcomeScreen);
     welcomeScreen.style.display = "flex";
     destroyAllCharts();
+    clearHistory();
 });
 
 /* ─── CSV Upload ─── */
@@ -211,6 +225,8 @@ async function handleSend() {
     }
 
     appendUserMessage(text);
+    saveToHistory("user", text);
+    
     queryInput.value = "";
     queryInput.style.height = "auto";
     sendBtn.disabled = true;
@@ -230,6 +246,7 @@ async function handleSend() {
             appendError(data.error);
         } else {
             appendDashboard(data);
+            saveToHistory("dashboard", data);
         }
     } catch (err) {
         loadingEl.remove();
@@ -321,13 +338,16 @@ function appendDashboard(data) {
         }
 
         return `
-            <div class="chart-card" style="animation-delay:${idx * 0.1}s">
+            <div class="chart-card option-card" data-idx="${idx}" style="animation-delay:${idx * 0.1}s">
                 <div class="chart-card-header">
                     <h3>${escapeHtml(chart.title || "Chart")}</h3>
                     <div class="card-actions-wrapper">
                         <span class="chart-type-badge">${escapeHtml(chart.type || "bar")}</span>
                         <button class="btn-icon btn-view-sql" title="View SQL" data-chart-index="${idx}">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+                        </button>
+                        <button class="btn-icon btn-download-chart" title="Download PNG" data-canvas-id="${canvasId}" data-title="${escapeHtml(chart.title || "chart")}">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                         </button>
                         <button class="btn-icon save-vault-btn" title="Save to Vault" data-chart-index="${idx}">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
@@ -338,6 +358,7 @@ function appendDashboard(data) {
                     <canvas id="${canvasId}"></canvas>
                 </div>
                 ${chart.description ? `<p class="chart-description">${escapeHtml(chart.description)}</p>` : ""}
+                <button class="btn-keep-option" data-idx="${idx}">Keep This Option</button>
                 <div class="sql-code-block" id="sql-block-${idx}" style="display: none;">
                     <div class="sql-header">Generated SQL Query</div>
                     <pre><code>${escapeHtml(chart.sql || "No SQL available")}</code></pre>
@@ -400,6 +421,49 @@ function appendDashboard(data) {
                 sqlBlock.style.display = 'none';
                 btn.classList.remove('active');
             }
+            scrollToBottom();
+        });
+    });
+
+    const downloadBtns = block.querySelectorAll('.btn-download-chart');
+    downloadBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tempCanvas = document.getElementById(btn.getAttribute('data-canvas-id'));
+            if (!tempCanvas) return;
+            const link = document.createElement('a');
+            link.download = (btn.getAttribute('data-title') || 'chart') + '.png';
+            
+            // Add white background for download so transparet pixels look correct
+            const destinationCanvas = document.createElement("canvas");
+            destinationCanvas.width = tempCanvas.width;
+            destinationCanvas.height = tempCanvas.height;
+            const destCtx = destinationCanvas.getContext('2d');
+            destCtx.fillStyle = "#1e1e1e"; // Set a dark background matching the theme
+            destCtx.fillRect(0,0,tempCanvas.width,tempCanvas.height);
+            destCtx.drawImage(tempCanvas, 0, 0);
+            
+            link.href = destinationCanvas.toDataURL("image/png");
+            link.click();
+        });
+    });
+
+    const keepBtns = block.querySelectorAll('.btn-keep-option');
+    keepBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const idxToKeep = btn.getAttribute('data-idx');
+            // Hide all other cards in this same block
+            const allCards = block.querySelectorAll('.option-card');
+            allCards.forEach(card => {
+                if (card.getAttribute('data-idx') !== idxToKeep) {
+                    card.style.display = 'none';
+                } else {
+                    card.style.gridColumn = '1 / -1'; // Expand to full width
+                    btn.style.display = 'none'; // Hide the 'keep option' button itself
+                }
+            });
+            // Update the grid layout to single column
+            const grid = block.querySelector('.dashboard-grid');
+            if (grid) grid.className = "dashboard-grid charts-1";
             scrollToBottom();
         });
     });
@@ -535,3 +599,18 @@ function escapeHtml(str) {
     div.textContent = str;
     return div.innerHTML;
 }
+
+// Restore chat history on load
+document.addEventListener("DOMContentLoaded", () => {
+    if (chatHistory.length > 0) {
+        welcomeScreen.style.display = "none";
+        chatHistory.forEach(entry => {
+            if (entry.type === "user") {
+                appendUserMessage(entry.content);
+            } else if (entry.type === "dashboard") {
+                appendDashboard(entry.content);
+            }
+        });
+        scrollToBottom();
+    }
+});

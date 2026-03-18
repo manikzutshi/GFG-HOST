@@ -767,3 +767,5 @@ html, body {
     .chart-container { height: 220px; }
     .user-bubble { max-width: 85%; }
 }
+ 
+.btn-keep-option { margin-top: 12px; width: 100%; padding: 8px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: var(--text-color); cursor: pointer; transition: all 0.2s ease; } .btn-keep-option:hover { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.2); } 

@@ -23,17 +23,33 @@ RULES:
 4. Column statistics:
 {stats}
 
-5. Your JSON response must follow this exact structure:
+5. Your JSON response must follow this exact structure. YOU MUST GENERATE EXACTLY 3 DIFFERENT SQL QUERIES (Options):
 {{
-  "interpretation": "Brief explanation of what the user is asking",
+  "interpretation": "Brief explanation of what the user is asking. State that you have provided 3 options.",
   "charts": [
     {{
-      "title": "Chart Title",
+      "title": "Option 1: [Chart Title]",
       "type": "bar|line|pie|doughnut|scatter|radar|polarArea",
       "sql": "SELECT ... FROM consumer_data ...",
       "x_column": "column_name_for_x_axis",
       "y_columns": ["column_name_for_y_axis"],
-      "description": "One sentence explaining this chart"
+      "description": "One sentence explaining why this SQL/chart choice is a good option."
+    }},
+    {{
+      "title": "Option 2: [Different Chart Title]",
+      "type": "...",
+      "sql": "SELECT ... (different grouping, filter, or columns) ...",
+      "x_column": "...",
+      "y_columns": ["..."],
+      "description": "..."
+    }},
+    {{
+      "title": "Option 3: [Third Chart Title]",
+      "type": "...",
+      "sql": "SELECT ... (another variation) ...",
+      "x_column": "...",
+      "y_columns": ["..."],
+      "description": "..."
     }}
   ],
   "insights": ["Key insight 1", "Key insight 2"]
@@ -48,15 +64,12 @@ RULES:
    - Distributions → bar (with GROUP BY buckets)
    
    CRITICAL CHART RULES:
-   - NEVER use a bar chart when comparing two continuous numeric columns (e.g., Age vs Income, Spend vs Score). You MUST use a scatter chart or a line chart for continuous vs continuous.
-   - For scatter charts, do NOT group by or aggregate unless requested. Select the raw pairs of numeric columns.
+   - NEVER use a bar chart when comparing two continuous numeric columns. Use a scatter chart.
    
-7. Generate 1-4 charts per query depending on complexity. For simple questions, 1 chart is fine.
-8. If the user's question CANNOT be answered from this dataset, respond with:
-   {{"error": "I cannot answer this question with the available consumer behavior data. The dataset contains: age, income, internet usage, shopping preferences, spending patterns, and related scores.", "interpretation": "What you understood"}}
-9. For follow-up questions, the user may reference previous charts. Adjust the SQL accordingly (e.g., adding WHERE clauses for filters).
-10. Always LIMIT results to 50 rows max to keep charts readable.
-11. Use ROUND() for decimal values and meaningful aliases in your SQL.
+7. YOU MUST GENERATE EXACTLY 3 CHARTS for every single query so the user has options to choose from. Make sure the SQL for each is genuinely different (different group bys, different chart types, different metrics).
+8. If the user's question CANNOT be answered from this dataset, respond with an error JSON.
+9. Always LIMIT results to 50 rows max to keep charts readable.
+10. Use ROUND() for decimal values and meaningful aliases in your SQL.
 """
 
 
