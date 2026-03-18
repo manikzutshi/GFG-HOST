@@ -117,6 +117,38 @@ html, body {
     transform: scale(0.98);
 }
 
+.solid-btn {
+    background: #1C1C1E;
+    border: 1px solid rgba(255,255,255,0.05);
+    color: #E5E5EA;
+    justify-content: flex-start;
+    padding: 14px 18px;
+    border-radius: 10px;
+    font-weight: 500;
+    box-shadow: none;
+}
+
+.solid-btn:hover {
+    background: #2C2C2E;
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.solid-blue-btn {
+    background: rgba(10, 132, 255, 0.08); /* Dark subtle blue tint */
+    border: 1px solid rgba(10, 132, 255, 0.15);
+    color: #0A84FF; /* Apple blue */
+    justify-content: flex-start;
+    padding: 14px 18px;
+    border-radius: 10px;
+    font-weight: 500;
+    box-shadow: none;
+}
+
+.solid-blue-btn:hover {
+    background: rgba(10, 132, 255, 0.15);
+    border-color: rgba(10, 132, 255, 0.3);
+}
+
 .btn-upload {
     color: var(--accent);
     background: rgba(10, 132, 255, 0.1);

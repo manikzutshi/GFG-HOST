@@ -7,9 +7,10 @@
     <meta name="description" content="Generate interactive business intelligence dashboards using natural language. Powered by AI.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/style.css?v=7.0">
+    <link rel="stylesheet" href="/static/css/style.css?v=8.0">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -23,7 +24,26 @@
                         <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
                         <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
                         <line x1="12" y1="22.08" x2="12" y2="12"/>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    </svg>
+                    <h1>InsightAI</h1>
+                </div>
+            </div>
+
+            <div class="sidebar-actions" style="margin-bottom: 12px;">
+                <button id="newChatBtn" class="btn-action solid-btn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    New Chat
+                </button>
+                <button id="vaultBtn" class="btn-action solid-btn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                    Graph Vault
+                </button>
+                <button id="mindmapBtn" class="btn-action solid-btn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+                    Mindmap
+                </button>
+                <label id="uploadBtn" class="btn-action btn-upload solid-blue-btn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                     Upload CSV
                     <input type="file" id="csvUpload" accept=".csv" hidden>
                 </label>
@@ -52,6 +72,16 @@
 
         <!-- Main Content -->
         <main class="main-content">
+            
+            <!-- Mindmap Area (Hidden by default) -->
+            <div class="mindmap-area" id="mindmapArea" style="display: none; height: 100%; width: 100%; position: relative;">
+                <div id="mindmapNetwork" style="width: 100%; height: 100%; outline: none;"></div>
+                <div style="position: absolute; top: 24px; left: 32px; z-index: 10;">
+                    <h3 style="margin-bottom: 4px; font-size: 1.25rem;">Interactive Mindmap</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-muted);">Double-click any historical node below to instantly restore that branching conversational state in the chat.</p>
+                </div>
+            </div>
+
             <!-- Chat Messages + Dashboard Area -->
             <div class="chat-dashboard-area" id="chatArea">
                 <div class="welcome-screen" id="welcomeScreen">

@@ -11,6 +11,10 @@ const vaultGrid = document.getElementById("vaultGrid");
 const vaultSearch = document.getElementById("vaultSearch");
 const inputBar = document.getElementById("inputBar");
 
+const mindmapArea = document.getElementById("mindmapArea");
+const mindmapNetwork = document.getElementById("mindmapNetwork");
+const mindmapBtn = document.getElementById("mindmapBtn");
+
 const CHART_COLORS = [
     "#0A84FF", // Blue
     "#30D158", // Green
@@ -132,6 +136,7 @@ document.querySelectorAll(".suggestion").forEach((btn) => {
 newChatBtn.addEventListener("click", async () => {
     document.body.classList.remove("vault-active");
     vaultArea.style.display = "none";
+    mindmapArea.style.display = "none";
     chatArea.style.display = "block";
     inputBar.style.display = "block";
     await fetch("/api/reset", { method: "POST" });
@@ -172,11 +177,152 @@ csvUpload.addEventListener("change", async (e) => {
     csvUpload.value = "";
 });
 
+/* ─── Mindmap Logic ─── */
+mindmapBtn.addEventListener("click", () => {
+    document.body.classList.remove("vault-active");
+    chatArea.style.display = "none";
+    inputBar.style.display = "none";
+    vaultArea.style.display = "none";
+    mindmapArea.style.display = "block";
+    renderMindmap();
+});
+
+let networkInstance = null;
+
+function renderMindmap() {
+    if (!window.vis) {
+        console.error("vis-network library not loaded.");
+        return;
+    }
+
+    const nodes = new vis.DataSet();
+    const edges = new vis.DataSet();
+
+    nodes.add({ 
+        id: "root", 
+        label: "Dataset Uploaded", 
+        shape: "database", 
+        color: { background: "rgba(10, 132, 255, 0.15)", border: "#0A84FF" }, 
+        font: { color: "#FFFFFF", face: "Inter", size: 14 },
+        margin: 14,
+        borderWidth: 2
+    });
+
+    appSessions.forEach(sess => {
+        let lastNodeId = "root";
+
+        // Resolve branching parent if this session was branched from a historical node
+        if (sess.parentSessionId && sess.parentMsgIndex !== undefined) {
+             const parentSess = appSessions.find(s => s.id === sess.parentSessionId);
+             if (parentSess && parentSess.messages[sess.parentMsgIndex]) {
+                 lastNodeId = parentSess.messages[sess.parentMsgIndex].domId;
+             }
+        }
+
+        sess.messages.forEach((msg, idx) => {
+            if (msg.type === "user") {
+                const nodeId = msg.domId;
+                
+                // Format text beautifully
+                let labelText = msg.content;
+                if (labelText.length > 30) labelText = labelText.substring(0, 30) + "...";
+
+                // Determine styling based on active session
+                const isActive = (sess.id === currentSessionId);
+                const bg = isActive ? "rgba(48, 209, 88, 0.15)" : "#1C1C1E";
+                const border = isActive ? "#30D158" : "rgba(255,255,255,0.1)";
+
+                // Add Node
+                nodes.add({
+                    id: nodeId,
+                    label: labelText,
+                    shape: "box",
+                    color: { background: bg, border: border },
+                    font: { color: "#FFFFFF", face: "Inter", size: 14 },
+                    margin: 14,
+                    borderWidth: isActive ? 2 : 1,
+                    shadow: true,
+                    // Stash interaction payload
+                    sessId: sess.id,
+                    msgIndex: idx
+                });
+
+                // Add Edge connecting parent to child
+                edges.add({
+                    from: lastNodeId,
+                    to: nodeId,
+                    color: { color: "#48484A" },
+                    arrows: "to"
+                });
+
+                lastNodeId = nodeId;
+            }
+        });
+    });
+
+    const data = { nodes, edges };
+    const options = {
+        layout: {
+            hierarchical: {
+                direction: "UD",
+                sortMethod: "directed",
+                nodeSpacing: 250,
+                levelSeparation: 120
+            }
+        },
+        physics: { enabled: false },
+        interaction: { hover: true, tooltipDelay: 200 }
+    };
+
+    if (networkInstance) {
+        networkInstance.destroy();
+    }
+    networkInstance = new vis.Network(mindmapNetwork, data, options);
+
+    networkInstance.on("doubleClick", function (params) {
+        if (params.nodes.length > 0) {
+            const nodeId = params.nodes[0];
+            if (nodeId === "root") return;
+            
+            const nodeData = nodes.get(nodeId);
+            if (nodeData && nodeData.sessId) {
+                branchSessionFromNode(nodeData.sessId, nodeData.msgIndex);
+            }
+        }
+    });
+}
+
+function branchSessionFromNode(sourceSessionId, msgIndex) {
+    const sourceSess = appSessions.find(s => s.id === sourceSessionId);
+    if (!sourceSess) return;
+
+    const newSess = {
+        id: "sess_" + Date.now(),
+        title: sourceSess.title + " (Branch)",
+        messages: JSON.parse(JSON.stringify(sourceSess.messages.slice(0, msgIndex + 2))),
+        parentSessionId: sourceSess.id,
+        parentMsgIndex: msgIndex 
+    };
+    appSessions.push(newSess);
+    localStorage.setItem("insightAiSessions", JSON.stringify(appSessions));
+    
+    // Animate navigation back to Chat View seamlessly
+    document.body.classList.remove("vault-active");
+    mindmapArea.style.display = "none";
+    vaultArea.style.display = "none";
+    chatArea.style.display = "block";
+    inputBar.style.display = "block";
+    
+    renderSidebarHistory();
+    loadSession(newSess.id);
+}
+
 /* ─── Vault Feature ─── */
 vaultBtn.addEventListener("click", async () => {
     document.body.classList.add("vault-active");
     chatArea.style.display = "none";
     inputBar.style.display = "none";
+    mindmapArea.style.display = "none";
     vaultArea.style.display = "block";
     
     vaultGrid.innerHTML = `<div class="loading-indicator" style="grid-column: 1/-1;"><span class="loading-text">Loading vault...</span></div>`;
@@ -623,8 +769,15 @@ function appendDashboard(data, domId) {
                 newChartConfig.canvasId = canvasId;
                 
                 const newCardHtml = createChartCardHtml(newChartConfig, newIdx, canvasId);
+                
+                const mainGrid = block.querySelector('.dashboard-grid');
+                mainGrid.insertAdjacentHTML('beforeend', newCardHtml);
+                
+                // Update grid columns class
+                mainGrid.className = `dashboard-grid charts-${Math.min(charts.length, 4)}`;
+                
                 const suggestedCard = block.querySelector(`#suggested-card-${domId}-${idx}`);
-                suggestedCard.outerHTML = newCardHtml;
+                if (suggestedCard) suggestedCard.remove();
                 
                 const newCard = block.querySelector(`.option-card[data-idx="${newIdx}"]`);
                 const newlyAddedCanvas = newCard.querySelector(`#${canvasId}`);
