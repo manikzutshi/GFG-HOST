@@ -4,6 +4,7 @@ import os
 import traceback
 import data_loader
 import gemini_service
+from supabase import create_client, Client
 
 load_dotenv()
 
@@ -75,100 +76,70 @@ def reset():
     gemini_service.reset_conversation()
     return jsonify({"message": "Conversation reset."})
 
-# --- VAULT FEATURE ---
+# --- VAULT FEATURE (SUPABASE) ---
 
+# We don't use local db anymore, but we keep this for backwards compatibility
 VAULT_DB_PATH = os.path.join(WRITABLE_DIR, "vault.db")
 
+def get_supabase() -> Client:
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_KEY")
+    if not supabase_url or not supabase_key:
+        raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in the environment")
+    return create_client(supabase_url, supabase_key)
+
 def init_vault():
-    import sqlite3
-    os.makedirs(WRITABLE_DIR, exist_ok=True)
-    conn = sqlite3.connect(VAULT_DB_PATH)
-    c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS saved_charts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
-            type TEXT,
-            data JSON,
-            x_column TEXT,
-            y_columns JSON,
-            description TEXT,
-            sql TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Simple migration: add 'sql' column if missing from earlier versions
+    # In Supabase, you should have already created the `saved_charts` table.
+    # We'll just verify the connection here.
     try:
-        c.execute('ALTER TABLE saved_charts ADD COLUMN sql TEXT')
-    except sqlite3.OperationalError:
-        pass  # Column likely already exists
-        
-    conn.commit()
-    conn.close()
+        supabase = get_supabase()
+        supabase.table("saved_charts").select("id").limit(1).execute()
+        print("Successfully connected to Supabase vault.")
+    except Exception as e:
+        print(f"Warning: Could not connect to Supabase: {e}")
 
 # Ensure the vault DB is always initialized when the module loads
 init_vault()
 
 @app.route("/api/vault", methods=["POST"])
 def save_to_vault():
-    import sqlite3
-    import json
     chart_data = request.get_json()
     if not chart_data:
          return jsonify({"error": "No data provided."}), 400
          
     try:
-        conn = sqlite3.connect(VAULT_DB_PATH)
-        c = conn.cursor()
-        c.execute('''
-            INSERT INTO saved_charts (title, type, data, x_column, y_columns, description, sql)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            chart_data.get("title", "Untitled"),
-            chart_data.get("type", "bar"),
-            json.dumps(chart_data.get("data", [])),
-            chart_data.get("x_column", ""),
-            json.dumps(chart_data.get("y_columns", [])),
-            chart_data.get("description", ""),
-            chart_data.get("sql", "")
-        ))
-        conn.commit()
-        conn.close()
-        return jsonify({"message": "Chart saved to Vault successfully."})
+        supabase = get_supabase()
+        
+        # Prepare data matching the Supabase table schema
+        # (Assuming the table matches the old SQLite schema)
+        row = {
+            "title": chart_data.get("title", "Untitled"),
+            "type": chart_data.get("type", "bar"),
+            "data": chart_data.get("data", []),
+            "x_column": chart_data.get("x_column", ""),
+            "y_columns": chart_data.get("y_columns", []),
+            "description": chart_data.get("description", ""),
+            "sql": chart_data.get("sql", "")
+        }
+        
+        response = supabase.table("saved_charts").insert(row).execute()
+        return jsonify({"message": "Chart saved to Vault successfully.", "data": response.data})
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"error": "Failed to save chart to Vault."}), 500
+        return jsonify({"error": f"Failed to save chart to Vault: {str(e)}"}), 500
 
 @app.route("/api/vault", methods=["GET"])
 def get_vault_charts():
-    import sqlite3
-    import json
     try:
-        conn = sqlite3.connect(VAULT_DB_PATH)
-        conn.row_factory = sqlite3.Row
-        c = conn.cursor()
-        c.execute('SELECT * FROM saved_charts ORDER BY created_at DESC')
-        rows = c.fetchall()
+        supabase = get_supabase()
+        response = supabase.table("saved_charts").select("*").order("created_at", desc=True).execute()
         
-        charts = []
-        for row in rows:
-            charts.append({
-                "id": row["id"],
-                "title": row["title"],
-                "type": row["type"],
-                "data": json.loads(row["data"]),
-                "x_column": row["x_column"],
-                "y_columns": json.loads(row["y_columns"]),
-                "description": row["description"],
-                "sql": row["sql"] if "sql" in row.keys() else "",
-                "created_at": row["created_at"]
-            })
-        conn.close()
+        # Data is already parsed as dictionaries/lists by the Supabase client
+        charts = response.data
         return jsonify({"charts": charts})
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"error": "Failed to retrieve Vault charts."}), 500
+        return jsonify({"error": f"Failed to retrieve Vault charts: {str(e)}"}), 500
 
 
 # Initialize data globally
