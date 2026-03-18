@@ -25,38 +25,80 @@ const CHART_COLORS = [
 let chartInstances = [];
 let msgBlockIdCounter = 0;
 
-// Chat History Management
-let chatHistory = JSON.parse(localStorage.getItem("insightAiHistory") || "[]");
+// ==========================================
+// SESSION MANAGEMENT (True Multi-Chat)
+// ==========================================
+let appSessions = JSON.parse(localStorage.getItem("insightAiSessions") || "[]");
+let currentSessionId = null;
 
-function saveToHistory(type, content, domId) {
-    chatHistory.push({ type, content, domId });
-    localStorage.setItem("insightAiHistory", JSON.stringify(chatHistory));
-    if (type === "user") renderSidebarHistory();
+function saveToSession(type, content, domId) {
+    if (!currentSessionId) {
+        // Create new session
+        currentSessionId = "sess_" + Date.now();
+        // Try to generate a title from user text, else default
+        const title = type === "user" ? (content.substring(0, 30) + "...") : "New Analytics Chat";
+        appSessions.push({ id: currentSessionId, title, messages: [] });
+    }
+    
+    // Find active session
+    const session = appSessions.find(s => s.id === currentSessionId);
+    if (session) {
+        session.messages.push({ type, content, domId });
+        localStorage.setItem("insightAiSessions", JSON.stringify(appSessions));
+    }
+    
+    renderSidebarHistory();
 }
 
-function clearHistory() {
-    chatHistory = [];
-    localStorage.removeItem("insightAiHistory");
+function startNewSession() {
+    currentSessionId = null;
+    chatArea.innerHTML = "";
+    chatArea.appendChild(welcomeScreen);
+    welcomeScreen.style.display = "flex";
+    destroyAllCharts();
     renderSidebarHistory();
+}
+
+function loadSession(sessionId) {
+    const session = appSessions.find(s => s.id === sessionId);
+    if (!session) return;
+    
+    currentSessionId = sessionId;
+    chatArea.innerHTML = "";
+    welcomeScreen.style.display = "none";
+    
+    // Replay session messages
+    session.messages.forEach(entry => {
+        if (entry.type === "user") {
+            appendUserMessage(entry.content, entry.domId);
+        } else if (entry.type === "dashboard") {
+            appendDashboard(entry.content, entry.domId);
+        }
+    });
+    
+    scrollToBottom();
 }
 
 function renderSidebarHistory() {
     const list = document.getElementById("sidebarHistoryList");
     if (!list) return;
     list.innerHTML = "";
-    const userPrompts = chatHistory.filter(h => h.type === "user");
-    userPrompts.slice(-10).forEach(prompt => {
+    
+    // Show newest first
+    const recent = [...appSessions].reverse().slice(0, 15);
+    recent.forEach(sess => {
         const btn = document.createElement("button");
         btn.className = "suggestion";
-        btn.textContent = prompt.content;
+        btn.textContent = sess.title;
         btn.style.textAlign = "left";
         btn.style.whiteSpace = "nowrap";
         btn.style.overflow = "hidden";
         btn.style.textOverflow = "ellipsis";
-        btn.addEventListener("click", () => {
-            const el = document.getElementById(prompt.domId);
-            if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-        });
+        if (sess.id === currentSessionId) {
+            btn.style.background = "rgba(108, 99, 255, 0.1)"; // highlight active
+            btn.style.border = "1px solid rgba(108, 99, 255, 0.5)";
+        }
+        btn.addEventListener("click", () => loadSession(sess.id));
         list.appendChild(btn);
     });
 }
@@ -93,11 +135,7 @@ newChatBtn.addEventListener("click", async () => {
     chatArea.style.display = "block";
     inputBar.style.display = "block";
     await fetch("/api/reset", { method: "POST" });
-    chatArea.innerHTML = "";
-    chatArea.appendChild(welcomeScreen);
-    welcomeScreen.style.display = "flex";
-    destroyAllCharts();
-    clearHistory();
+    startNewSession();
 });
 
 /* ─── CSV Upload ─── */
@@ -180,6 +218,15 @@ vaultBtn.addEventListener("click", async () => {
                                 <button class="btn-icon btn-view-sql-vault" title="View SQL" data-chart-index="${i}">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
                                 </button>
+                                <button class="btn-icon btn-dl-png" title="Download PNG" data-canvas-id="${canvasId}" data-idx="${i}">
+                                    <span style="font-size:10px; font-weight:bold;">PNG</span>
+                                </button>
+                                <button class="btn-icon btn-dl-pdf" title="Download PDF" data-canvas-id="${canvasId}" data-idx="${i}">
+                                    <span style="font-size:10px; font-weight:bold;">PDF</span>
+                                </button>
+                                <button class="btn-icon btn-dl-csv" title="Download CSV" data-idx="${i}">
+                                    <span style="font-size:10px; font-weight:bold;">CSV</span>
+                                </button>
                                 <button class="btn-icon btn-remove-vault" title="Remove from Vault" data-chart-id="${c.id}">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                                 </button>
@@ -236,6 +283,9 @@ vaultBtn.addEventListener("click", async () => {
                     }
                 });
             });
+
+            // Bind download buttons for vault
+            bindDownloadButtons(vaultGrid, chartsToRender);
         };
 
         // Initial render
@@ -272,7 +322,7 @@ async function handleSend() {
 
     const domId = `msg-${msgBlockIdCounter++}`;
     appendUserMessage(text, domId);
-    saveToHistory("user", text, domId);
+    saveToSession("user", text, domId);
     
     queryInput.value = "";
     queryInput.style.height = "auto";
@@ -294,7 +344,7 @@ async function handleSend() {
         } else {
             const domId = `msg-${msgBlockIdCounter++}`;
             appendDashboard(data, domId);
-            saveToHistory("dashboard", data, domId);
+            saveToSession("dashboard", data, domId);
         }
     } catch (err) {
         loadingEl.remove();
@@ -428,6 +478,12 @@ function appendDashboard(data, domId) {
             ${interpretationHtml}
             <div class="dashboard-grid ${gridClass}">${cardsHtml}</div>
             ${insightsHtml}
+            <div style="margin-top: 16px; text-align: right;">
+                <button class="btn-executive-export">
+                    <svg width="16" height="16" style="margin-right: 6px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                    Export Executive PDF Report
+                </button>
+            </div>
         </div>
     `;
 
@@ -481,34 +537,7 @@ function appendDashboard(data, domId) {
         });
     });
 
-    const csvBtns = block.querySelectorAll('.btn-dl-csv');
-    csvBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const cIdx = btn.getAttribute('data-idx');
-            const chartData = charts[cIdx].data;
-            if (!chartData || !chartData.length) return;
-            const keys = Object.keys(chartData[0]);
-            let csvContent = "data:text/csv;charset=utf-8," + keys.join(",") + "\\n" +
-                chartData.map(row => keys.map(k => '"' + (row[k]||'') + '"').join(",")).join("\\n");
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", (charts[cIdx].title || "data") + ".csv");
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-        });
-    });
-
-    const pngBtns = block.querySelectorAll('.btn-dl-png');
-    pngBtns.forEach(btn => {
-        btn.addEventListener('click', () => downloadImageOrPdf(btn, false, charts));
-    });
-
-    const pdfBtns = block.querySelectorAll('.btn-dl-pdf');
-    pdfBtns.forEach(btn => {
-        btn.addEventListener('click', () => downloadImageOrPdf(btn, true, charts));
-    });
+    bindDownloadButtons(block, charts);
 
     const keepBtns = block.querySelectorAll('.btn-keep-option');
     keepBtns.forEach(btn => {
@@ -531,7 +560,45 @@ function appendDashboard(data, domId) {
         });
     });
 
+    const exportBtn = block.querySelector('.btn-executive-export');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+            generateExecutiveReport(block, data);
+        });
+    }
+
     scrollToBottom();
+}
+
+function bindDownloadButtons(container, chartsArray) {
+    const csvBtns = container.querySelectorAll('.btn-dl-csv');
+    csvBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const cIdx = btn.getAttribute('data-idx');
+            const chartData = chartsArray[cIdx].data;
+            if (!chartData || !chartData.length) return;
+            const keys = Object.keys(chartData[0]);
+            let csvContent = "data:text/csv;charset=utf-8," + keys.join(",") + "\\n" +
+                chartData.map(row => keys.map(k => '"' + (row[k]||'') + '"').join(",")).join("\\n");
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", (chartsArray[cIdx].title || "data") + ".csv");
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        });
+    });
+
+    const pngBtns = container.querySelectorAll('.btn-dl-png');
+    pngBtns.forEach(btn => {
+        btn.addEventListener('click', () => downloadImageOrPdf(btn, false, chartsArray));
+    });
+
+    const pdfBtns = container.querySelectorAll('.btn-dl-pdf');
+    pdfBtns.forEach(btn => {
+        btn.addEventListener('click', () => downloadImageOrPdf(btn, true, chartsArray));
+    });
 }
 
 function downloadImageOrPdf(btn, isPdf, charts) {
@@ -598,6 +665,153 @@ function downloadImageOrPdf(btn, isPdf, charts) {
         link.click();
     }
 }
+
+// ==========================================
+// EXECUTIVE REPORT GENERATION
+// ==========================================
+function generateExecutiveReport(block, data) {
+    const win = window.open('', '_blank');
+    if (!win) {
+        alert("Please allow popups to generate the PDF report.");
+        return;
+    }
+
+    // Find all visible charts in this block to respect the user's "Keep Option" choices
+    const visibleCards = Array.from(block.querySelectorAll('.chart-card')).filter(card => card.style.display !== 'none');
+    
+    let chartBlocksHtml = "";
+    
+    visibleCards.forEach((card, idx) => {
+        const title = card.querySelector('h3').innerText.replace(/^Option \d+: /, ''); // Strip option prefix if present
+        const descEl = card.querySelector('.chart-description');
+        const desc = descEl ? descEl.innerText : "No inference available.";
+        const canvas = card.querySelector('canvas');
+        const imgData = canvas.toDataURL("image/png", 1.0);
+
+        chartBlocksHtml += `
+            <div class="chart-section" style="${idx > 0 ? 'page-break-before: always; margin-top: 60px;' : ''}">
+                <h2>${title}</h2>
+                <div class="img-wrapper">
+                    <img src="${imgData}" />
+                </div>
+                <div class="inference">
+                    <strong>Inference & Analysis:</strong><br/>
+                    ${desc}
+                </div>
+            </div>
+        `;
+    });
+
+    let insightsHtml = "";
+    if (data.insights && data.insights.length > 0) {
+        insightsHtml = `
+            <div class="summary" style="page-break-before: always;">
+                <h2>Executive Takeaways / Insights</h2>
+                <ul>
+                    ${data.insights.map(i => "<li>" + escapeHtml(i) + "</li>").join('')}
+                </ul>
+            </div>
+        `;
+    }
+
+    const docHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>InsightAI Data Report</title>
+            <style>
+                @page { size: A4 portrait; margin: 20mm; }
+                body { 
+                    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
+                    color: #1a1a1a; 
+                    background: #ffffff; 
+                    padding: 0; 
+                    margin: 0; 
+                    line-height: 1.6;
+                }
+                .header { 
+                    text-align: center; 
+                    border-bottom: 2px solid #eaebf0; 
+                    padding-bottom: 15px; 
+                    margin-bottom: 40px; 
+                }
+                .header h1 { margin: 0; color: #111; font-size: 28px; }
+                .header p { margin: 5px 0 0 0; color: #666; font-size: 14px; }
+                
+                .chart-section { margin-bottom: 40px; }
+                .chart-section h2 { 
+                    font-size: 18px; 
+                    color: #222; 
+                    margin-bottom: 20px;
+                    border-left: 4px solid #6c63ff;
+                    padding-left: 10px;
+                }
+                .img-wrapper {
+                    border: 1px solid #e2e4e8;
+                    border-radius: 8px;
+                    padding: 15px;
+                    background: #fdfdfd;
+                    margin-bottom: 20px;
+                }
+                .img-wrapper img { 
+                    max-width: 100%; 
+                    height: auto; 
+                }
+                .inference { 
+                    background: #f4f6fa; 
+                    border-radius: 6px; 
+                    padding: 20px; 
+                    font-size: 15px;
+                    color: #333;
+                }
+                
+                .summary { 
+                    padding: 30px; 
+                    background: #eceffd; 
+                    border-radius: 8px;
+                    border: 1px solid #dce1f9;
+                }
+                .summary h2 { 
+                    margin-top: 0; 
+                    color: #111; 
+                    font-size: 22px; 
+                    border-bottom: 1px solid #c8cff5; 
+                    padding-bottom: 10px; 
+                }
+                .summary ul { margin: 0; padding-left: 20px; }
+                .summary li { margin-bottom: 12px; font-size: 15px; }
+                
+                @media print {
+                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>InsightAI Executive Report</h1>
+                <p>Generated automatically from your data query</p>
+                <p style="margin-top:20px; font-weight:bold; color:#000;">Original Query: <br><span style="font-weight:normal; font-style:italic;">"${escapeHtml(data.interpretation)}"</span></p>
+            </div>
+            
+            ${chartBlocksHtml}
+            ${insightsHtml}
+            
+            <script>
+                // Auto-print when images map loads
+                window.onload = () => {
+                    setTimeout(() => {
+                        window.print();
+                    }, 500);
+                }
+            </script>
+        </body>
+        </html>
+    `;
+
+    win.document.write(docHtml);
+    win.document.close();
+}
+
 
 function renderChart(canvas, chartConfig) {
     const { type, data, x_column, y_columns, title } = chartConfig;
@@ -727,18 +941,14 @@ function escapeHtml(str) {
     return div.innerHTML;
 }
 
-// Restore chat history on load
+// Restore sessions on load
 document.addEventListener("DOMContentLoaded", () => {
-    if (chatHistory.length > 0) {
-        welcomeScreen.style.display = "none";
-        chatHistory.forEach(entry => {
-            if (entry.type === "user") {
-                appendUserMessage(entry.content, entry.domId);
-            } else if (entry.type === "dashboard") {
-                appendDashboard(entry.content, entry.domId);
-            }
-        });
-        scrollToBottom();
-    }
+    // Render the sidebar history list immediately
     renderSidebarHistory();
+    
+    // Load the most recent session if it exists
+    if (appSessions.length > 0) {
+        const lastSession = appSessions[appSessions.length - 1];
+        loadSession(lastSession.id);
+    }
 });
