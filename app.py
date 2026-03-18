@@ -3,10 +3,9 @@ from dotenv import load_dotenv
 import os
 import traceback
 import json
+import requests as http_requests
 import data_loader
 import gemini_service
-import psycopg2
-import psycopg2.extras
 
 load_dotenv()
 
@@ -78,41 +77,36 @@ def reset():
     gemini_service.reset_conversation()
     return jsonify({"message": "Conversation reset."})
 
-# --- VAULT FEATURE (SUPABASE POSTGRES) ---
+# --- VAULT FEATURE (SUPABASE REST API) ---
 
-def get_db_conn():
-    database_url = os.getenv("DATABASE_URL")
-    if not database_url:
-        raise ValueError("DATABASE_URL environment variable is not set")
-    return psycopg2.connect(database_url)
+def supabase_headers():
+    key = os.getenv("SUPABASE_KEY", "")
+    return {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+    }
+
+def supabase_url(table):
+    base = os.getenv("SUPABASE_URL", "").rstrip("/")
+    return f"{base}/rest/v1/{table}"
 
 
 def init_vault():
-    """Create the saved_charts table in Supabase Postgres if it doesn't exist."""
+    """Verify Supabase connection by pinging the saved_charts table."""
     try:
-        conn = get_db_conn()
-        c = conn.cursor()
-        c.execute('''
-            CREATE TABLE IF NOT EXISTS saved_charts (
-                id SERIAL PRIMARY KEY,
-                title TEXT,
-                type TEXT,
-                data JSONB,
-                x_column TEXT,
-                y_columns JSONB,
-                description TEXT,
-                sql TEXT,
-                created_at TIMESTAMPTZ DEFAULT NOW()
-            )
-        ''')
-        conn.commit()
-        conn.close()
-        print("Vault table ready in Supabase Postgres.")
+        url = supabase_url("saved_charts") + "?select=id&limit=1"
+        resp = http_requests.get(url, headers=supabase_headers(), timeout=5)
+        if resp.status_code == 200:
+            print("Supabase vault connection verified.")
+        else:
+            print(f"Warning: Supabase vault check returned {resp.status_code}: {resp.text}")
     except Exception as e:
-        print(f"Warning: Could not initialize vault table: {e}")
+        print(f"Warning: Could not connect to Supabase: {e}")
 
 
-# Initialize the vault table on startup
+# Try to verify vault on startup (non-fatal if it fails)
 try:
     init_vault()
 except Exception as e:
@@ -126,23 +120,27 @@ def save_to_vault():
          return jsonify({"error": "No data provided."}), 400
 
     try:
-        conn = get_db_conn()
-        c = conn.cursor()
-        c.execute('''
-            INSERT INTO saved_charts (title, type, data, x_column, y_columns, description, sql)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        ''', (
-            chart_data.get("title", "Untitled"),
-            chart_data.get("type", "bar"),
-            json.dumps(chart_data.get("data", [])),
-            chart_data.get("x_column", ""),
-            json.dumps(chart_data.get("y_columns", [])),
-            chart_data.get("description", ""),
-            chart_data.get("sql", "")
-        ))
-        conn.commit()
-        conn.close()
-        return jsonify({"message": "Chart saved to Vault successfully."})
+        row = {
+            "title": chart_data.get("title", "Untitled"),
+            "type": chart_data.get("type", "bar"),
+            "data": chart_data.get("data", []),
+            "x_column": chart_data.get("x_column", ""),
+            "y_columns": chart_data.get("y_columns", []),
+            "description": chart_data.get("description", ""),
+            "sql": chart_data.get("sql", "")
+        }
+
+        resp = http_requests.post(
+            supabase_url("saved_charts"),
+            headers=supabase_headers(),
+            json=row,
+            timeout=10
+        )
+
+        if resp.status_code in (200, 201):
+            return jsonify({"message": "Chart saved to Vault successfully."})
+        else:
+            return jsonify({"error": f"Supabase error: {resp.text}"}), 500
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": f"Failed to save chart to Vault: {str(e)}"}), 500
@@ -151,26 +149,14 @@ def save_to_vault():
 @app.route("/api/vault", methods=["GET"])
 def get_vault_charts():
     try:
-        conn = get_db_conn()
-        c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        c.execute('SELECT * FROM saved_charts ORDER BY created_at DESC')
-        rows = c.fetchall()
-        conn.close()
+        url = supabase_url("saved_charts") + "?select=*&order=created_at.desc"
+        resp = http_requests.get(url, headers=supabase_headers(), timeout=10)
 
-        charts = []
-        for row in rows:
-            charts.append({
-                "id": row["id"],
-                "title": row["title"],
-                "type": row["type"],
-                "data": row["data"] if isinstance(row["data"], (list, dict)) else json.loads(row["data"]),
-                "x_column": row["x_column"],
-                "y_columns": row["y_columns"] if isinstance(row["y_columns"], (list, dict)) else json.loads(row["y_columns"]),
-                "description": row["description"],
-                "sql": row.get("sql", ""),
-                "created_at": str(row["created_at"])
-            })
-        return jsonify({"charts": charts})
+        if resp.status_code == 200:
+            charts = resp.json()
+            return jsonify({"charts": charts})
+        else:
+            return jsonify({"error": f"Supabase error: {resp.text}"}), 500
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": f"Failed to retrieve Vault charts: {str(e)}"}), 500
